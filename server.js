@@ -44,6 +44,7 @@ const categoryRoutes = require('./routes/categories');
 const quizRoutes = require('./routes/quizzes');
 const sessionRoutes = require('./routes/sessions');
 const statsRoutes = require('./routes/stats');
+const syncRoutes = require('./routes/sync');
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -62,6 +63,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/sync', syncRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
