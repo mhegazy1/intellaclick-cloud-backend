@@ -215,18 +215,21 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-// GET /api/auth/me (protected route example)
-router.get('/me', async (req, res) => {
+// Removed duplicate /me route - already defined above
+
+// GET /api/auth/user - Alias for /api/auth/me for backward compatibility
+router.get('/user', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = req.headers['x-auth-token'] || req.headers['authorization']?.split(' ')[1];
+    
+    if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
-
-    const token = authHeader.substring(7);
+    
+    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-
-    // Find user by ID (simplified for demo)
+    
+    // Find user by ID from all stored users
     let foundUser = null;
     for (const [email, user] of users.entries()) {
       if (user.id === decoded.userId) {
@@ -234,11 +237,12 @@ router.get('/me', async (req, res) => {
         break;
       }
     }
-
+    
     if (!foundUser) {
       return res.status(404).json({ error: 'User not found' });
     }
-
+    
+    // Return user without password
     res.json({
       id: foundUser.id,
       email: foundUser.email,
@@ -247,8 +251,11 @@ router.get('/me', async (req, res) => {
       role: foundUser.role
     });
   } catch (error) {
-    console.error('Auth check error:', error);
-    res.status(401).json({ error: 'Invalid token' });
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
