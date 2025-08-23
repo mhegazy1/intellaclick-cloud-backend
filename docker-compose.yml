@@ -5,6 +5,10 @@ services:
     build: .
     ports:
       - "5000:5000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.intellaclick.com`)"
+      - "traefik.http.services.api.loadbalancer.server.port=5000"
     environment:
       - NODE_ENV=production
       - MONGODB_URI=mongodb://mongo:27017/intellaclick
