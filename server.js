@@ -47,12 +47,40 @@ const statsRoutes = require('./routes/stats');
 const syncRoutes = require('./routes/sync');
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    service: 'IntellaClick Cloud API'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState;
+    const dbStatusText = ['disconnected', 'connected', 'connecting', 'disconnecting'][dbStatus];
+    
+    // Try to ping the database
+    let dbPing = false;
+    if (dbStatus === 1) {
+      try {
+        await mongoose.connection.db.admin().ping();
+        dbPing = true;
+      } catch (err) {
+        console.error('DB ping failed:', err.message);
+      }
+    }
+    
+    res.json({ 
+      status: dbStatus === 1 && dbPing ? 'ok' : 'degraded',
+      timestamp: new Date().toISOString(),
+      service: 'IntellaClick Cloud API',
+      database: {
+        status: dbStatusText,
+        ping: dbPing,
+        uri: process.env.MONGODB_URI ? 'configured' : 'using default'
+      },
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // API routes
@@ -100,21 +128,37 @@ app.use((req, res) => {
 });
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/intellaclick', {
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/intellaclick';
+console.log(`Attempting to connect to MongoDB at: ${mongoUri}`);
+
+mongoose.connect(mongoUri, {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+  socketTimeoutMS: 45000,
 })
 .then(() => {
-  console.log('Connected to MongoDB');
+  console.log('Connected to MongoDB successfully');
+  console.log('Database:', mongoose.connection.db.databaseName);
   
   // Start server
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`JWT Secret configured: ${process.env.JWT_SECRET ? 'Yes' : 'No (using default)'}`);
   });
 })
 .catch(err => {
-  console.error('MongoDB connection error:', err);
+  console.error('MongoDB connection error:', err.message);
+  console.error('Full error:', err);
+  
+  // More helpful error messages
+  if (err.message.includes('ECONNREFUSED')) {
+    console.error('\nMake sure MongoDB is running:');
+    console.error('- For local development: mongod');
+    console.error('- For Docker: docker-compose up mongo');
+  }
+  
   process.exit(1);
 });
 

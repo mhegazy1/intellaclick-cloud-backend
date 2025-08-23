@@ -36,7 +36,7 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role = 'instructor' } = req.body;
+    const { email, password, firstName, lastName, role = 'user' } = req.body;
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -55,7 +55,18 @@ router.post('/register', [
       role
     });
 
-    await user.save();
+    try {
+      await user.save();
+    } catch (saveError) {
+      console.error('User save error:', saveError);
+      if (saveError.name === 'ValidationError') {
+        return res.status(400).json({ 
+          error: 'Validation error', 
+          details: saveError.message 
+        });
+      }
+      throw saveError;
+    }
 
     // Generate tokens
     const token = generateToken(user._id.toString());
@@ -75,7 +86,10 @@ router.post('/register', [
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ 
+      error: 'Server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Registration failed'
+    });
   }
 });
 
@@ -126,7 +140,10 @@ router.post('/login', [
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ 
+      error: 'Server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Login failed'
+    });
   }
 });
 
@@ -234,5 +251,39 @@ router.get('/user', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// DEBUG endpoint - Remove in production!
+if (process.env.NODE_ENV === 'development') {
+  router.post('/debug/test-password', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      const user = await User.findOne({ email });
+      if (!user) {
+        return res.json({ 
+          found: false,
+          message: 'User not found'
+        });
+      }
+      
+      const isMatch = await user.comparePassword(password);
+      
+      res.json({
+        found: true,
+        email: user.email,
+        hasPassword: !!user.password,
+        passwordLength: user.password ? user.password.length : 0,
+        passwordMatch: isMatch,
+        passwordStartsWith: user.password ? user.password.substring(0, 10) + '...' : null,
+        bcryptFormat: user.password ? user.password.startsWith('$2a$') || user.password.startsWith('$2b$') : false
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  });
+}
 
 module.exports = router;
