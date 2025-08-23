@@ -3,9 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-
-// Temporary in-memory storage (replace with MongoDB models)
-const users = new Map();
+const User = require('../models/User');
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -39,43 +37,36 @@ router.post('/register', [
     }
 
     const { email, password, firstName, lastName, role = 'instructor' } = req.body;
-    
-    // Normalize email to ensure consistency
-    const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user exists
-    if (users.has(normalizedEmail)) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({ 
         error: 'User already exists' 
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
-    const user = {
-      id: Date.now().toString(),
-      email: normalizedEmail,
-      password: hashedPassword,
+    // Create user (password will be hashed by the model)
+    const user = new User({
+      email,
+      password,
       firstName,
       lastName,
-      role,
-      createdAt: new Date()
-    };
+      role
+    });
 
-    users.set(normalizedEmail, user);
+    await user.save();
 
     // Generate tokens
-    const token = generateToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
+    const token = generateToken(user._id.toString());
+    const refreshToken = generateRefreshToken(user._id.toString());
 
     res.json({
       success: true,
       token,
       refreshToken,
       user: {
-        id: user.id,
+        id: user._id.toString(),
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -100,36 +91,33 @@ router.post('/login', [
     }
 
     const { email, password } = req.body;
-    
-    // Normalize email to ensure consistency
-    const normalizedEmail = email.toLowerCase().trim();
 
     // Find user
-    const user = users.get(normalizedEmail);
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ 
         error: 'Invalid credentials' 
       });
     }
 
-    // Verify password
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
+    // Check password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
       return res.status(401).json({ 
         error: 'Invalid credentials' 
       });
     }
 
     // Generate tokens
-    const token = generateToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
+    const token = generateToken(user._id.toString());
+    const refreshToken = generateRefreshToken(user._id.toString());
 
     res.json({
       success: true,
       token,
       refreshToken,
       user: {
-        id: user.id,
+        id: user._id.toString(),
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -154,26 +142,20 @@ router.get('/me', async (req, res) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
     
-    // Find user by ID from all stored users
-    let foundUser = null;
-    for (const [email, user] of users.entries()) {
-      if (user.id === decoded.userId) {
-        foundUser = user;
-        break;
-      }
-    }
+    // Find user by ID
+    const user = await User.findById(decoded.userId);
     
-    if (!foundUser) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
     // Return user without password
     res.json({
-      id: foundUser.id,
-      email: foundUser.email,
-      firstName: foundUser.firstName,
-      lastName: foundUser.lastName,
-      role: foundUser.role
+      id: user._id.toString(),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role
     });
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -229,26 +211,20 @@ router.get('/user', async (req, res) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
     
-    // Find user by ID from all stored users
-    let foundUser = null;
-    for (const [email, user] of users.entries()) {
-      if (user.id === decoded.userId) {
-        foundUser = user;
-        break;
-      }
-    }
+    // Find user by ID
+    const user = await User.findById(decoded.userId);
     
-    if (!foundUser) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
     // Return user without password
     res.json({
-      id: foundUser.id,
-      email: foundUser.email,
-      firstName: foundUser.firstName,
-      lastName: foundUser.lastName,
-      role: foundUser.role
+      id: user._id.toString(),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role
     });
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
