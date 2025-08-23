@@ -39,9 +39,12 @@ router.post('/register', [
     }
 
     const { email, password, firstName, lastName, role = 'instructor' } = req.body;
+    
+    // Normalize email to ensure consistency
+    const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user exists
-    if (users.has(email)) {
+    if (users.has(normalizedEmail)) {
       return res.status(400).json({ 
         error: 'User already exists' 
       });
@@ -53,7 +56,7 @@ router.post('/register', [
     // Create user
     const user = {
       id: Date.now().toString(),
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       firstName,
       lastName,
@@ -61,7 +64,7 @@ router.post('/register', [
       createdAt: new Date()
     };
 
-    users.set(email, user);
+    users.set(normalizedEmail, user);
 
     // Generate tokens
     const token = generateToken(user.id);
@@ -97,9 +100,12 @@ router.post('/login', [
     }
 
     const { email, password } = req.body;
+    
+    // Normalize email to ensure consistency
+    const normalizedEmail = email.toLowerCase().trim();
 
     // Find user
-    const user = users.get(email);
+    const user = users.get(normalizedEmail);
     if (!user) {
       return res.status(401).json({ 
         error: 'Invalid credentials' 
