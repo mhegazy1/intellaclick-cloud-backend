@@ -90,6 +90,7 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/clicker/sessions', sessionRoutes); // Alias for clicker compatibility
 app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 
