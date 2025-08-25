@@ -130,7 +130,8 @@ app.use((req, res) => {
 
 // Database connection
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/intellaclick';
-console.log(`Attempting to connect to MongoDB at: ${mongoUri}`);
+console.log(`MONGODB_URI from environment: ${process.env.MONGODB_URI}`);
+console.log(`Using MongoDB URI: ${mongoUri}`);
 
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
