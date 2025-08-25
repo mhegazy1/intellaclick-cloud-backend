@@ -4,8 +4,8 @@
   "description": "IntellaClick Cloud Backend API",
   "main": "server.js",
   "scripts": {
-    "start": "bash start.sh || node server.js",
-    "start:basic": "node server.js",
+    "start": "node server.js",
+    "start:prod": "sh start.sh",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
