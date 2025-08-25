@@ -3,7 +3,14 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
+const path = require('path');
+
+// Load environment variables
 require('dotenv').config();
+// Also try loading from .env.production if NODE_ENV is production
+if (process.env.NODE_ENV === 'production') {
+  require('dotenv').config({ path: path.join(__dirname, '.env.production') });
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -128,10 +135,20 @@ app.use((req, res) => {
   });
 });
 
+// Enhanced environment debugging
+console.log('=== Environment Variables Debug ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('MONGODB_URI:', process.env.MONGODB_URI);
+console.log('JWT_SECRET configured:', process.env.JWT_SECRET ? 'Yes' : 'No');
+console.log('All env vars:', Object.keys(process.env).filter(key => 
+  key.includes('MONGO') || key.includes('JWT') || key.includes('NODE') || key.includes('PORT')
+));
+console.log('=================================');
+
 // Database connection
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/intellaclick';
-console.log(`MONGODB_URI from environment: ${process.env.MONGODB_URI}`);
-console.log(`Using MongoDB URI: ${mongoUri}`);
+console.log(`Using MongoDB URI: ${mongoUri.includes('mongodb+srv') ? 'Atlas cluster' : 'Local MongoDB'}`);
 
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
