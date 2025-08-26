@@ -266,4 +266,100 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// Get active session for a participant
+router.get('/active', auth, async (req, res) => {
+  try {
+    // Find session where user is a participant
+    const session = await Session.findOne({
+      'participants.userId': req.user.userId,
+      status: { $in: ['waiting', 'active'] }
+    });
+    
+    if (!session) {
+      return res.json({ session: null });
+    }
+    
+    res.json({ session });
+  } catch (error) {
+    console.error('Error getting active session:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get current question for a session
+router.get('/:id/current-question', auth, async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      question: session.currentQuestion || null,
+      questionIndex: session.currentQuestionIndex || 0
+    });
+  } catch (error) {
+    console.error('Error getting current question:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Submit response to a question
+router.post('/:id/questions/:questionId/respond', auth, async (req, res) => {
+  try {
+    const { answer, timeSpent } = req.body;
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Store response
+    const response = {
+      userId: req.user.userId,
+      questionId: req.params.questionId,
+      answer,
+      timeSpent,
+      timestamp: new Date()
+    };
+    
+    session.responses.push(response);
+    await session.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Response recorded',
+      responseId: response._id
+    });
+  } catch (error) {
+    console.error('Error submitting response:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Leave a session
+router.post('/:id/leave', auth, async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Remove participant
+    session.participants = session.participants.filter(
+      p => p.userId !== req.user.userId
+    );
+    
+    await session.save();
+    
+    res.json({ success: true, message: 'Left session successfully' });
+  } catch (error) {
+    console.error('Error leaving session:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
