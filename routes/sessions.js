@@ -295,9 +295,27 @@ router.get('/:id/current-question', auth, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
+    // Transform currentQuestion to match frontend expectations
+    let question = null;
+    if (session.currentQuestion) {
+      question = {
+        id: session.currentQuestion.questionId,
+        sessionId: session._id,
+        text: session.currentQuestion.questionText,
+        type: session.currentQuestion.questionType,
+        options: session.currentQuestion.options.map((opt, idx) => ({
+          id: String.fromCharCode(65 + idx), // A, B, C, D
+          text: opt
+        })),
+        points: 10,
+        timeLimit: 30,
+        startedAt: session.currentQuestion.startedAt
+      };
+    }
+    
     res.json({ 
       success: true, 
-      question: session.currentQuestion || null,
+      question,
       questionIndex: session.currentQuestionIndex || 0
     });
   } catch (error) {
@@ -371,22 +389,13 @@ router.post('/:id/send-test-question', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
-    // Create a test question
+    // Create a test question matching the schema
     const testQuestion = {
-      id: `Q${Date.now()}`,
-      sessionId: session._id,
-      text: req.body.text || 'What is 2 + 2?',
-      type: 'multiple_choice',
-      options: [
-        { id: 'A', text: '3' },
-        { id: 'B', text: '4' },
-        { id: 'C', text: '5' },
-        { id: 'D', text: '6' }
-      ],
-      correctAnswer: 'B',
-      points: 10,
-      timeLimit: 30,
-      startedAt: new Date().toISOString()
+      questionId: `Q${Date.now()}`,
+      questionText: req.body.text || 'What is 2 + 2?',
+      questionType: 'multiple_choice',
+      options: ['3', '4', '5', '6'],
+      startedAt: new Date()
     };
     
     // Set as current question
