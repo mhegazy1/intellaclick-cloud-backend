@@ -1,5 +1,0 @@
-[phases.setup]
-nixPkgs = ['nodejs', 'npm']
-
-[start]
-cmd = "npm run start:prod"

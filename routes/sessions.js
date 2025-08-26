@@ -71,7 +71,7 @@ router.post('/', auth, async (req, res) => {
       sessionCode,
       title,
       description,
-      instructorId: req.user.id,
+      instructorId: req.user.userId || req.user.id, // Handle both token formats
       status: 'waiting'
     });
     
@@ -196,7 +196,7 @@ router.patch('/:id/status', auth, async (req, res) => {
     
     const session = await Session.findOne({ 
       _id: req.params.id,
-      instructorId: req.user.id 
+      instructorId: req.user.userId || req.user.id 
     });
     
     if (!session) {
@@ -239,7 +239,7 @@ router.patch('/:id/status', auth, async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     const sessions = await Session.find({ 
-      instructorId: req.user.id 
+      instructorId: req.user.userId || req.user.id 
     }).sort({ createdAt: -1 });
     
     res.json({
@@ -380,8 +380,8 @@ router.post('/:id/leave', auth, async (req, res) => {
   }
 });
 
-// TEST ENDPOINT: Send a test question to a session
-router.post('/:id/send-test-question', async (req, res) => {
+// Send question to session (from desktop app)
+router.post('/:id/questions', auth, async (req, res) => {
   try {
     const session = await Session.findById(req.params.id);
     
@@ -389,21 +389,32 @@ router.post('/:id/send-test-question', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
-    // Create a test question matching the schema
-    const testQuestion = {
-      questionId: `Q${Date.now()}`,
-      questionText: req.body.text || 'What is 2 + 2?',
-      questionType: 'multiple_choice',
-      options: ['3', '4', '5', '6'],
+    // Verify the instructor owns this session
+    if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    const { questionId, questionText, questionType, options, correctAnswer, points, timeLimit } = req.body;
+    
+    // Create question object
+    const question = {
+      questionId: questionId || `Q${Date.now()}`,
+      questionText,
+      questionType,
+      options,
+      correctAnswer,
+      points: points || 10,
+      timeLimit: timeLimit || 30,
       startedAt: new Date()
     };
     
     // Set as current question
-    session.currentQuestion = testQuestion;
+    session.currentQuestion = question;
     session.currentQuestionIndex = (session.currentQuestionIndex || 0) + 1;
-    session.status = 'active';
     
-    if (!session.startedAt) {
+    // Update session status if needed
+    if (session.status === 'waiting') {
+      session.status = 'active';
       session.startedAt = new Date();
     }
     
@@ -411,23 +422,28 @@ router.post('/:id/send-test-question', async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Test question sent!',
-      question: testQuestion
+      message: 'Question sent successfully',
+      question
     });
     
   } catch (error) {
-    console.error('Error sending test question:', error);
+    console.error('Error sending question:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// TEST ENDPOINT: End current question
-router.post('/:id/end-question', async (req, res) => {
+// End current question
+router.post('/:id/questions/:questionId/end', auth, async (req, res) => {
   try {
     const session = await Session.findById(req.params.id);
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Verify the instructor owns this session
+    if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
     }
     
     // Clear current question
