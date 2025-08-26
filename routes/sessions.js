@@ -362,4 +362,78 @@ router.post('/:id/leave', auth, async (req, res) => {
   }
 });
 
+// TEST ENDPOINT: Send a test question to a session
+router.post('/:id/send-test-question', async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Create a test question
+    const testQuestion = {
+      id: `Q${Date.now()}`,
+      sessionId: session._id,
+      text: req.body.text || 'What is 2 + 2?',
+      type: 'multiple_choice',
+      options: [
+        { id: 'A', text: '3' },
+        { id: 'B', text: '4' },
+        { id: 'C', text: '5' },
+        { id: 'D', text: '6' }
+      ],
+      correctAnswer: 'B',
+      points: 10,
+      timeLimit: 30,
+      startedAt: new Date().toISOString()
+    };
+    
+    // Set as current question
+    session.currentQuestion = testQuestion;
+    session.currentQuestionIndex = (session.currentQuestionIndex || 0) + 1;
+    session.status = 'active';
+    
+    if (!session.startedAt) {
+      session.startedAt = new Date();
+    }
+    
+    await session.save();
+    
+    res.json({
+      success: true,
+      message: 'Test question sent!',
+      question: testQuestion
+    });
+    
+  } catch (error) {
+    console.error('Error sending test question:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// TEST ENDPOINT: End current question
+router.post('/:id/end-question', async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Clear current question
+    session.currentQuestion = null;
+    await session.save();
+    
+    res.json({
+      success: true,
+      message: 'Question ended'
+    });
+    
+  } catch (error) {
+    console.error('Error ending question:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
