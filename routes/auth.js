@@ -80,9 +80,11 @@ router.post('/register', [
       user: {
         id: user._id.toString(),
         email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
+        joinedAt: user.createdAt || new Date().toISOString()
       }
     });
   } catch (error) {
@@ -134,9 +136,11 @@ router.post('/login', [
       user: {
         id: user._id.toString(),
         email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
+        joinedAt: user.createdAt || new Date().toISOString()
       }
     });
   } catch (error) {
@@ -303,7 +307,8 @@ router.get('/me', auth, async (req, res) => {
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
+        joinedAt: user.createdAt || new Date().toISOString()
       }
     });
   } catch (error) {
@@ -358,7 +363,8 @@ router.put('/profile', [
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role
+        role: user.role,
+        joinedAt: user.createdAt || new Date().toISOString()
       }
     });
   } catch (error) {
