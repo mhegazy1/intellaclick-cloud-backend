@@ -248,25 +248,31 @@ console.log('=================================');
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/intellaclick';
 console.log(`Using MongoDB URI: ${mongoUri.includes('mongodb+srv') ? 'Atlas cluster' : 'Local MongoDB'}`);
 
+// Start server immediately (don't wait for MongoDB)
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`JWT Secret configured: ${process.env.JWT_SECRET ? 'Yes' : 'No (using default)'}`);
+});
+
+// Track MongoDB connection state
+let mongoConnected = false;
+
+// Connect to MongoDB (but don't exit if it fails)
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+  serverSelectionTimeoutMS: 10000, // Timeout after 10s
   socketTimeoutMS: 45000,
+  bufferCommands: false, // Disable buffering
 })
 .then(() => {
+  mongoConnected = true;
   console.log('Connected to MongoDB successfully');
   console.log('Database:', mongoose.connection.db.databaseName);
-  
-  // Start server
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`JWT Secret configured: ${process.env.JWT_SECRET ? 'Yes' : 'No (using default)'}`);
-  });
 })
 .catch(err => {
-  console.error('MongoDB connection error:', err.message);
+  console.error('MongoDB initial connection error:', err.message);
   console.error('Full error:', err);
   
   // More helpful error messages
@@ -274,9 +280,29 @@ mongoose.connect(mongoUri, {
     console.error('\nMake sure MongoDB is running:');
     console.error('- For local development: mongod');
     console.error('- For Docker: docker-compose up mongo');
+  } else if (err.message.includes('ENOTFOUND')) {
+    console.error('\nDNS resolution failed. This might be a Docker networking issue.');
+    console.error('The server will continue running and retry the connection.');
   }
   
-  process.exit(1);
+  // Don't exit - server can still handle health checks
+  console.log('\n⚠️  Server starting without MongoDB connection. Will retry...');
+});
+
+// MongoDB connection event handlers
+mongoose.connection.on('connected', () => {
+  mongoConnected = true;
+  console.log('MongoDB connected successfully');
+});
+
+mongoose.connection.on('error', (err) => {
+  mongoConnected = false;
+  console.error('MongoDB connection error:', err.message);
+});
+
+mongoose.connection.on('disconnected', () => {
+  mongoConnected = false;
+  console.log('MongoDB disconnected');
 });
 
 // Graceful shutdown

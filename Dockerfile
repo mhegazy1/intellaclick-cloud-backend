@@ -1,5 +1,8 @@
 FROM node:18-alpine
 
+# Install necessary packages including curl for healthcheck
+RUN apk add --no-cache curl
+
 # Create app directory
 WORKDIR /usr/src/app
 
@@ -13,9 +16,9 @@ COPY . .
 # Expose port
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"
+# Health check using curl
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD curl -f http://localhost:5000/health || exit 1
 
 # Make start script executable
 RUN chmod +x start.sh || true

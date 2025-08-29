@@ -1,0 +1,27 @@
+=== Environment Variables Debug ===
+NODE_ENV: development
+PORT: 5000
+MONGODB_URI: mongodb+srv://intellaquizUser:9LkyODoSlvJGEK8F@intellaquizcluster.ra2kc.mongodb.net/intellaquiz?retryWrites=true&w=majority&appName=intellaquizCluster
+JWT_SECRET configured: Yes
+All env vars: [
+  'OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE',
+  'PORT',
+  'NODE_ENV',
+  'MONGODB_URI',
+  'JWT_SECRET'
+]
+=================================
+Using MongoDB URI: Atlas cluster
+(node:977) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:977) [MONGOOSE] Warning: Duplicate schema index on {"sessionCode":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:977) [MONGODB DRIVER] Warning: useNewUrlParser is a deprecated option: useNewUrlParser has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+(node:977) [MONGODB DRIVER] Warning: useUnifiedTopology is a deprecated option: useUnifiedTopology has no effect since Node.js Driver version 4.0.0 and will be removed in the next major version
+MongoDB connection error: querySrv ENOTFOUND _mongodb._tcp.intellaquizcluster.ra2kc.mongodb.net
+Full error: Error: querySrv ENOTFOUND _mongodb._tcp.intellaquizcluster.ra2kc.mongodb.net
+    at QueryReqWrap.onresolve [as oncomplete] (node:internal/dns/promises:275:17) {
+  errno: undefined,
+  code: 'ENOTFOUND',
+  syscall: 'querySrv',
+  hostname: '_mongodb._tcp.intellaquizcluster.ra2kc.mongodb.net'
+}
