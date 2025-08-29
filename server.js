@@ -16,21 +16,59 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
-app.use(helmet());
-app.use(cors({
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// CORS configuration
+const corsOptions = {
   origin: function(origin, callback) {
-    // Allow requests with no origin (like Electron apps)
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Get allowed origins from environment variable
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(url => url.trim()) || [];
+    
+    // Add default development origins
+    const defaultOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173'
+    ];
+    
+    // In production, add common Netlify patterns
+    if (process.env.NODE_ENV === 'production') {
+      // Add any Netlify preview/branch deploy patterns
+      const netlifyPatterns = [
+        /^https:\/\/.*\.netlify\.app$/,
+        /^https:\/\/.*\.netlify\.live$/
+      ];
+      
+      // Check if origin matches any pattern
+      const matchesPattern = netlifyPatterns.some(pattern => pattern.test(origin));
+      if (matchesPattern) {
+        return callback(null, true);
+      }
+    }
+    
+    // Combine all allowed origins
+    const allAllowedOrigins = [...defaultOrigins, ...allowedOrigins];
+    
+    if (allAllowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins for now
+      console.log(`CORS: Blocked origin ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
+  exposedHeaders: ['x-auth-token'],
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -51,7 +89,8 @@ const categoryRoutes = require('./routes/categories');
 const quizRoutes = require('./routes/quizzes');
 const sessionRoutes = require('./routes/sessions');
 const statsRoutes = require('./routes/stats');
-const syncRoutes = require('./routes/sync');
+// Use MongoDB-backed sync routes
+const syncRoutes = require('./routes/sync-mongodb');
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -116,11 +155,68 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  // Log error details
+  console.error('Error:', {
+    message: err.message,
+    status: err.status,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    origin: req.headers.origin
+  });
+
+  // Handle CORS errors specifically
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      error: {
+        message: 'CORS policy: Origin not allowed',
+        status: 403,
+        code: 'CORS_ERROR'
+      }
+    });
+  }
+
+  // Handle Mongoose validation errors
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      error: {
+        message: 'Validation error',
+        status: 400,
+        code: 'VALIDATION_ERROR',
+        details: err.errors
+      }
+    });
+  }
+
+  // Handle MongoDB duplicate key errors
+  if (err.code === 11000) {
+    return res.status(400).json({
+      error: {
+        message: 'Duplicate entry',
+        status: 400,
+        code: 'DUPLICATE_ERROR'
+      }
+    });
+  }
+
+  // Handle JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      error: {
+        message: 'Invalid token',
+        status: 401,
+        code: 'AUTH_ERROR'
+      }
+    });
+  }
+
+  // Default error response
   res.status(err.status || 500).json({
     error: {
       message: err.message || 'Internal server error',
-      status: err.status || 500
+      status: err.status || 500,
+      code: err.code || 'SERVER_ERROR'
     }
   });
 });
@@ -129,8 +225,10 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     error: {
-      message: 'Not found',
-      status: 404
+      message: 'Resource not found',
+      status: 404,
+      code: 'NOT_FOUND',
+      path: req.path
     }
   });
 });

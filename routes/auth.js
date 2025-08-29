@@ -152,39 +152,29 @@ router.post('/login', [
   }
 });
 
-// GET /api/auth/me - Get current user
-router.get('/me', async (req, res) => {
+// GET /api/auth/me - Get current user (using auth middleware)
+router.get('/me', auth, async (req, res) => {
   try {
-    const token = req.headers['x-auth-token'] || req.headers['authorization']?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-    
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-    
-    // Find user by ID
-    const user = await User.findById(decoded.userId);
-    
+    const user = await User.findById(req.user.userId).select('-password');
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'User not found' });
     }
     
-    // Return user without password
-    res.json({
-      id: user._id.toString(),
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role
+    // Return in the format the frontend expects
+    res.json({ 
+      user: {
+        id: user._id,
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        joinedAt: user.createdAt || new Date().toISOString()
+      }
     });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error getting user:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -222,38 +212,28 @@ router.post('/refresh', async (req, res) => {
 // Removed duplicate /me route - already defined above
 
 // GET /api/auth/user - Alias for /api/auth/me for backward compatibility
-router.get('/user', async (req, res) => {
+router.get('/user', auth, async (req, res) => {
   try {
-    const token = req.headers['x-auth-token'] || req.headers['authorization']?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-    
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-    
-    // Find user by ID
-    const user = await User.findById(decoded.userId);
-    
+    const user = await User.findById(req.user.userId).select('-password');
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ success: false, error: 'User not found' });
     }
     
-    // Return user without password
-    res.json({
-      id: user._id.toString(),
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role
+    // Return in the format the frontend expects (same as /me)
+    res.json({ 
+      user: {
+        id: user._id,
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        joinedAt: user.createdAt || new Date().toISOString()
+      }
     });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error getting user:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -291,31 +271,6 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// GET /api/auth/me - Get current user
-router.get('/me', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId).select('-password');
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
-    }
-    
-    // Return in the format the frontend expects
-    res.json({ 
-      user: {
-        id: user._id,
-        email: user.email,
-        name: `${user.firstName} ${user.lastName}`,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        joinedAt: user.createdAt || new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error getting user:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // POST /api/auth/logout - Logout (just for frontend compatibility)
 router.post('/logout', auth, async (req, res) => {
