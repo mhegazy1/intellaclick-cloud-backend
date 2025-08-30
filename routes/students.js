@@ -64,12 +64,12 @@ const registrationValidation = [
     .matches(/^[a-zA-Z\s'-]+$/)
     .withMessage('Last name can only contain letters, spaces, hyphens, and apostrophes'),
   body('studentId')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isAlphanumeric()
     .withMessage('Student ID can only contain letters and numbers'),
   body('institution')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isLength({ max: 200 }),
   body('termsAccepted')
