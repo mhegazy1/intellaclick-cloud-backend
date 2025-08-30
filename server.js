@@ -89,6 +89,7 @@ const categoryRoutes = require('./routes/categories');
 const quizRoutes = require('./routes/quizzes');
 const sessionRoutes = require('./routes/sessions');
 const statsRoutes = require('./routes/stats');
+const studentsRoutes = require('./routes/students');
 // Use MongoDB-backed sync routes
 const syncRoutes = require('./routes/sync-mongodb');
 
@@ -132,6 +133,7 @@ app.get('/health', async (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/students', studentsRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
