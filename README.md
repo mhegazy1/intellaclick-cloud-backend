@@ -105,4 +105,4 @@ set API_URL=https://api.intellaclick.com/api&& npm run build
 - `POST /api/auth/refresh` - Refresh JWT token
 - `GET /api/auth/me` - Get current user
 
-More endpoints to be implemented in respective route files.
+More endpoints to be implemented in respective route files.# Deploy trigger: Sun Aug 31 18:42:36 CDT 2025
