@@ -547,7 +547,7 @@ router.get('/code/:sessionCode/participants', async (req, res) => {
 });
 
 // Submit response by session code (for students)
-router.post('/code/:sessionCode/respond', auth, async (req, res) => {
+router.post('/code/:sessionCode/respond', async (req, res) => {
   try {
     const { questionId, answer, timeSpent } = req.body;
     const session = await Session.findOne({ 
