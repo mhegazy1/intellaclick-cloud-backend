@@ -324,7 +324,7 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
       question = {
         id: session.currentQuestion.questionId,
         sessionId: session._id,
-        text: session.currentQuestion.questionText,
+        questionText: session.currentQuestion.questionText,  // Changed from 'text' to 'questionText'
         type: session.currentQuestion.questionType,
         options: session.currentQuestion.options.map((opt, idx) => ({
           id: String.fromCharCode(65 + idx), // A, B, C, D
