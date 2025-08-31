@@ -97,6 +97,27 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+// Get participants for a session
+router.get('/:id/participants', auth, async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    res.json({
+      success: true,
+      participants: session.participants,
+      count: session.participants.length
+    });
+    
+  } catch (error) {
+    console.error('Get participants error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get session by code
 router.get('/code/:sessionCode', async (req, res) => {
   try {
@@ -286,6 +307,47 @@ router.get('/active', auth, async (req, res) => {
   }
 });
 
+// Get current question for a session by code (for students)
+router.get('/code/:sessionCode/current-question', async (req, res) => {
+  try {
+    const session = await Session.findOne({ 
+      sessionCode: req.params.sessionCode.toUpperCase() 
+    });
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Transform currentQuestion to match frontend expectations
+    let question = null;
+    if (session.currentQuestion && session.currentQuestion.questionText) {
+      question = {
+        id: session.currentQuestion.questionId,
+        sessionId: session._id,
+        text: session.currentQuestion.questionText,
+        type: session.currentQuestion.questionType,
+        options: session.currentQuestion.options.map((opt, idx) => ({
+          id: String.fromCharCode(65 + idx), // A, B, C, D
+          text: opt
+        })),
+        points: session.currentQuestion.points || 10,
+        timeLimit: session.currentQuestion.timeLimit || 30,
+        startedAt: session.currentQuestion.startedAt
+      };
+    }
+    
+    res.json({ 
+      success: true, 
+      question,
+      sessionStatus: session.status
+    });
+    
+  } catch (error) {
+    console.error('Get current question error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get current question for a session
 router.get('/:id/current-question', auth, async (req, res) => {
   try {
@@ -457,6 +519,64 @@ router.post('/:id/questions/:questionId/end', auth, async (req, res) => {
     
   } catch (error) {
     console.error('Error ending question:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get participants by session code (for desktop app polling)
+router.get('/code/:sessionCode/participants', async (req, res) => {
+  try {
+    const session = await Session.findOne({ 
+      sessionCode: req.params.sessionCode.toUpperCase() 
+    });
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    res.json({
+      success: true,
+      participants: session.participants,
+      count: session.participants.length
+    });
+    
+  } catch (error) {
+    console.error('Get participants error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Submit response by session code (for students)
+router.post('/code/:sessionCode/respond', auth, async (req, res) => {
+  try {
+    const { questionId, answer, timeSpent } = req.body;
+    const session = await Session.findOne({ 
+      sessionCode: req.params.sessionCode.toUpperCase() 
+    });
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Store response
+    const response = {
+      userId: req.user.userId,
+      questionId,
+      answer,
+      timeSpent,
+      timestamp: new Date()
+    };
+    
+    session.responses.push(response);
+    await session.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Response recorded',
+      responseId: response._id
+    });
+  } catch (error) {
+    console.error('Error submitting response:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
