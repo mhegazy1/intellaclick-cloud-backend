@@ -73,12 +73,30 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Rate limiting
-const limiter = rateLimit({
+// Rate limiting - Different limits for different endpoints
+const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000 // limit each IP to 1000 requests per windowMs (increased for testing)
+  max: 10, // limit each IP to 10 auth requests per windowMs
+  message: 'Too many authentication attempts, please try again later.'
 });
-app.use('/api/', limiter);
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000 // limit each IP to 1000 requests per windowMs
+});
+
+// Student polling needs much higher limits
+const studentPollingLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 300, // 5 requests per second for polling
+  message: 'Too many requests, please try again later.'
+});
+
+// Apply different limits to different routes
+app.use('/api/auth/', authLimiter);
+app.use('/api/sessions/code/:code/current-question', studentPollingLimiter);
+app.use('/api/sessions/code/:code/respond', studentPollingLimiter);
+app.use('/api/', generalLimiter); // General limiter for all other routes
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));

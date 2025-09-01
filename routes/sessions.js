@@ -3,6 +3,15 @@ const router = express.Router();
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
 
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    message: 'Sessions API is running'
+  });
+});
+
 // Create a test session (for development)
 router.post('/test', async (req, res) => {
   try {
@@ -341,19 +350,27 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
     // Transform currentQuestion to match frontend expectations
     let question = null;
     if (session.currentQuestion && session.currentQuestion.questionText) {
-      question = {
-        id: session.currentQuestion.questionId,
-        sessionId: session._id,
-        questionText: session.currentQuestion.questionText,  // Changed from 'text' to 'questionText'
-        type: session.currentQuestion.questionType,
-        options: session.currentQuestion.options.map((opt, idx) => ({
-          id: String.fromCharCode(65 + idx), // A, B, C, D
-          text: opt
-        })),
-        points: session.currentQuestion.points || 10,
-        timeLimit: session.currentQuestion.timeLimit || 30,
-        startedAt: session.currentQuestion.startedAt
-      };
+      try {
+        question = {
+          id: session.currentQuestion.questionId,
+          sessionId: session._id,
+          questionText: session.currentQuestion.questionText,  // Changed from 'text' to 'questionText'
+          type: session.currentQuestion.questionType,
+          options: session.currentQuestion.options && session.currentQuestion.options.length > 0 
+            ? session.currentQuestion.options.map((opt, idx) => ({
+                id: String.fromCharCode(65 + idx), // A, B, C, D
+                text: opt
+              }))
+            : [],
+          points: session.currentQuestion.points || 10,
+          timeLimit: session.currentQuestion.timeLimit || 30,
+          startedAt: session.currentQuestion.startedAt
+        };
+        console.log('[Sessions] Transformed question:', JSON.stringify(question, null, 2));
+      } catch (transformError) {
+        console.error('[Sessions] Error transforming question:', transformError);
+        console.error('[Sessions] Question data:', session.currentQuestion);
+      }
     } else {
       console.log('[Sessions] No question found or questionText missing');
       console.log('[Sessions] currentQuestion exists?', !!session.currentQuestion);
@@ -361,6 +378,12 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
         console.log('[Sessions] questionText exists?', !!session.currentQuestion.questionText);
       }
     }
+    
+    console.log('[Sessions] Returning question response:', {
+      success: true,
+      question: question,
+      sessionStatus: session.status
+    });
     
     res.json({ 
       success: true, 
