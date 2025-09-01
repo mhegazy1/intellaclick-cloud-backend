@@ -157,6 +157,7 @@ router.get('/code/:sessionCode', async (req, res) => {
 router.post('/join', async (req, res) => {
   try {
     const { sessionCode, name, userId } = req.body;
+    console.log('[Sessions] Join request:', { sessionCode, name, userId });
     
     const session = await Session.findOne({ 
       sessionCode: sessionCode.toUpperCase() 
@@ -179,6 +180,13 @@ router.post('/join', async (req, res) => {
     // Generate participant ID
     const participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
     
+    // Initialize participants array if it doesn't exist
+    if (!session.participants) {
+      session.participants = [];
+    }
+    
+    console.log('[Sessions] Current participants before adding:', session.participants.length);
+    
     // Add participant to session
     session.participants.push({
       userId: userId || null,
@@ -187,7 +195,15 @@ router.post('/join', async (req, res) => {
       joinedAt: new Date()
     });
     
+    console.log('[Sessions] Saving session with new participant');
     await session.save();
+    
+    // Verify the save worked
+    const updatedSession = await Session.findById(session._id);
+    console.log('[Sessions] Session after join:', {
+      participantCount: updatedSession.participants?.length || 0,
+      lastParticipant: updatedSession.participants?.[updatedSession.participants.length - 1]
+    });
     
     res.json({
       success: true,
