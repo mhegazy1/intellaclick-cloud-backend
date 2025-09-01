@@ -561,10 +561,10 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     // Store response
     const response = {
       userId: req.user?.userId || null,  // Handle unauthenticated users
+      participantId: req.body.participantId || `anon_${Date.now()}`,
       questionId,
       answer,
-      timeSpent,
-      timestamp: new Date()
+      submittedAt: new Date()
     };
     
     session.responses.push(response);
