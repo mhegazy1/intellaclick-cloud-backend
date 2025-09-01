@@ -31,6 +31,9 @@ const sessionSchema = new mongoose.Schema({
     questionText: String,
     questionType: String,
     options: [String],
+    correctAnswer: String,
+    points: { type: Number, default: 10 },
+    timeLimit: { type: Number, default: 30 },
     startedAt: Date
   },
   participants: [{

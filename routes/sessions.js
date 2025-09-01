@@ -334,6 +334,10 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
+    // Debug logging
+    console.log('[Sessions] Getting current question for session:', session.sessionCode);
+    console.log('[Sessions] Current question in DB:', JSON.stringify(session.currentQuestion, null, 2));
+    
     // Transform currentQuestion to match frontend expectations
     let question = null;
     if (session.currentQuestion && session.currentQuestion.questionText) {
@@ -350,6 +354,12 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
         timeLimit: session.currentQuestion.timeLimit || 30,
         startedAt: session.currentQuestion.startedAt
       };
+    } else {
+      console.log('[Sessions] No question found or questionText missing');
+      console.log('[Sessions] currentQuestion exists?', !!session.currentQuestion);
+      if (session.currentQuestion) {
+        console.log('[Sessions] questionText exists?', !!session.currentQuestion.questionText);
+      }
     }
     
     res.json({ 
@@ -499,6 +509,9 @@ router.post('/:id/questions', auth, async (req, res) => {
     session.currentQuestion = question;
     session.currentQuestionIndex = (session.currentQuestionIndex || 0) + 1;
     
+    // CRITICAL: Mark currentQuestion as modified for Mongoose
+    session.markModified('currentQuestion');
+    
     // Update session status if needed
     if (session.status === 'waiting') {
       console.log('[Sessions] Updating session status from waiting to active');
@@ -508,7 +521,8 @@ router.post('/:id/questions', auth, async (req, res) => {
     
     console.log('[Sessions] Saving session with question:', {
       questionId: question.questionId,
-      sessionStatus: session.status
+      sessionStatus: session.status,
+      questionText: question.questionText
     });
     
     await session.save();
