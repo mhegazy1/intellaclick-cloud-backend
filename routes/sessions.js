@@ -445,11 +445,20 @@ router.post('/:id/leave', auth, async (req, res) => {
 // Send question to session (from desktop app)
 router.post('/:id/questions', auth, async (req, res) => {
   try {
+    console.log('[Sessions] Sending question to session:', req.params.id);
     const session = await Session.findById(req.params.id);
     
     if (!session) {
+      console.error('[Sessions] Session not found:', req.params.id);
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
+    
+    console.log('[Sessions] Found session:', { 
+      id: session._id, 
+      code: session.sessionCode, 
+      status: session.status,
+      participantCount: session.participants?.length || 0
+    });
     
     // Verify the instructor owns this session
     if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
@@ -476,11 +485,25 @@ router.post('/:id/questions', auth, async (req, res) => {
     
     // Update session status if needed
     if (session.status === 'waiting') {
+      console.log('[Sessions] Updating session status from waiting to active');
       session.status = 'active';
       session.startedAt = new Date();
     }
     
+    console.log('[Sessions] Saving session with question:', {
+      questionId: question.questionId,
+      sessionStatus: session.status
+    });
+    
     await session.save();
+    
+    // Verify the save worked
+    const savedSession = await Session.findById(session._id);
+    console.log('[Sessions] Session after save:', {
+      status: savedSession.status,
+      hasCurrentQuestion: !!savedSession.currentQuestion,
+      questionId: savedSession.currentQuestion?.questionId
+    });
     
     res.json({
       success: true,
@@ -549,14 +572,28 @@ router.get('/code/:sessionCode/participants', async (req, res) => {
 // Submit response by session code (for students)
 router.post('/code/:sessionCode/respond', async (req, res) => {
   try {
-    const { questionId, answer, timeSpent } = req.body;
+    const { questionId, answer, timeSpent, participantId } = req.body;
+    console.log('[Sessions] Response submission:', {
+      sessionCode: req.params.sessionCode,
+      questionId,
+      answer,
+      participantId
+    });
+    
     const session = await Session.findOne({ 
       sessionCode: req.params.sessionCode.toUpperCase() 
     });
     
     if (!session) {
+      console.error('[Sessions] Session not found for response:', req.params.sessionCode);
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
+    
+    console.log('[Sessions] Found session for response:', {
+      id: session._id,
+      code: session.sessionCode,
+      responseCount: session.responses?.length || 0
+    });
     
     // Store response
     const response = {
@@ -567,8 +604,23 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
       submittedAt: new Date()
     };
     
+    // Initialize responses array if it doesn't exist
+    if (!session.responses) {
+      session.responses = [];
+    }
+    
+    console.log('[Sessions] Adding response to session');
     session.responses.push(response);
+    
+    console.log('[Sessions] Saving session with response');
     await session.save();
+    
+    // Verify the save worked
+    const updatedSession = await Session.findById(session._id);
+    console.log('[Sessions] Session after response save:', {
+      responseCount: updatedSession.responses?.length || 0,
+      lastResponse: updatedSession.responses?.[updatedSession.responses.length - 1]
+    });
     
     // Get the last response which will have the generated _id
     const savedResponse = session.responses[session.responses.length - 1];
