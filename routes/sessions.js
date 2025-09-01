@@ -585,6 +585,44 @@ router.get('/code/:sessionCode/participants', async (req, res) => {
   }
 });
 
+// Get responses for a session by code (for instructors)
+router.get('/code/:sessionCode/responses', async (req, res) => {
+  try {
+    const session = await Session.findOne({ 
+      sessionCode: req.params.sessionCode.toUpperCase() 
+    });
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Group responses by question
+    const responsesByQuestion = {};
+    session.responses.forEach(response => {
+      const questionId = response.questionId;
+      if (!responsesByQuestion[questionId]) {
+        responsesByQuestion[questionId] = [];
+      }
+      responsesByQuestion[questionId].push({
+        participantId: response.participantId,
+        answer: response.answer,
+        submittedAt: response.submittedAt
+      });
+    });
+    
+    res.json({
+      success: true,
+      responses: session.responses,
+      responsesByQuestion,
+      totalResponses: session.responses.length
+    });
+    
+  } catch (error) {
+    console.error('Get responses error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Submit response by session code (for students)
 router.post('/code/:sessionCode/respond', async (req, res) => {
   try {
