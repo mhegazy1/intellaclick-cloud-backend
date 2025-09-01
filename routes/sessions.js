@@ -129,6 +129,14 @@ router.get('/:id/participants', auth, async (req, res) => {
 
 // Get session by code
 router.get('/code/:sessionCode', async (req, res) => {
+  // Prevent caching
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  
   try {
     const session = await Session.findOne({ 
       sessionCode: req.params.sessionCode.toUpperCase() 
@@ -334,6 +342,14 @@ router.get('/active', auth, async (req, res) => {
 
 // Get current question for a session by code (for students)
 router.get('/code/:sessionCode/current-question', async (req, res) => {
+  // Prevent caching of this endpoint
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  
   try {
     const session = await Session.findOne({ 
       sessionCode: req.params.sessionCode.toUpperCase() 
