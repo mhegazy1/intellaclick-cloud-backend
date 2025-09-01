@@ -570,10 +570,13 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     session.responses.push(response);
     await session.save();
     
+    // Get the last response which will have the generated _id
+    const savedResponse = session.responses[session.responses.length - 1];
+    
     res.json({ 
       success: true, 
       message: 'Response recorded',
-      responseId: response._id
+      responseId: savedResponse._id
     });
   } catch (error) {
     console.error('Error submitting response:', error);
