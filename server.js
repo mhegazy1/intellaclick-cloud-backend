@@ -96,6 +96,8 @@ const studentPollingLimiter = rateLimit({
 app.use('/api/auth/', authLimiter);
 app.use('/api/sessions/code/:code/current-question', studentPollingLimiter);
 app.use('/api/sessions/code/:code/respond', studentPollingLimiter);
+app.use('/api/sessions/code/:code/responses', studentPollingLimiter);
+app.use('/api/sessions/code/:code/participants', studentPollingLimiter);
 app.use('/api/', generalLimiter); // General limiter for all other routes
 
 // Body parsing
