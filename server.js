@@ -104,6 +104,15 @@ app.use('/api/', generalLimiter); // General limiter for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging middleware
+const requestLogger = require('./middleware/request-logger');
+app.use(requestLogger);
+
+// Stats endpoint (no rate limiting)
+app.get('/api/request-stats', (req, res) => {
+  res.json(requestLogger.getStats());
+});
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
