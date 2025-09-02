@@ -44,10 +44,17 @@ router.post('/test', async (req, res) => {
     // Check if session code already exists
     const existingSession = await Session.findOne({ sessionCode });
     if (existingSession) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Session code already exists' 
-      });
+      // If session is old (more than 12 hours) and not active, delete it
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      if (existingSession.createdAt < twelveHoursAgo && existingSession.status !== 'active') {
+        console.log(`[Sessions] Deleting old session with code ${sessionCode}`);
+        await Session.deleteOne({ _id: existingSession._id });
+      } else {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Session code already exists' 
+        });
+      }
     }
     
     // Create new session
@@ -90,10 +97,17 @@ router.post('/', auth, async (req, res) => {
     // Check if session code already exists
     const existingSession = await Session.findOne({ sessionCode });
     if (existingSession) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Session code already exists' 
-      });
+      // If session is old (more than 12 hours) and not active, delete it
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      if (existingSession.createdAt < twelveHoursAgo && existingSession.status !== 'active') {
+        console.log(`[Sessions] Deleting old session with code ${sessionCode}`);
+        await Session.deleteOne({ _id: existingSession._id });
+      } else {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Session code already exists' 
+        });
+      }
     }
     
     // Create new session
@@ -674,34 +688,62 @@ router.get('/code/:sessionCode/participants', async (req, res) => {
 
 // Get responses for a session by code (for instructors)
 router.get('/code/:sessionCode/responses', async (req, res) => {
+  // Prevent caching
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  
   try {
-    const session = await Session.findOne({ 
-      sessionCode: req.params.sessionCode.toUpperCase() 
-    });
+    const sessionCode = req.params.sessionCode.toUpperCase();
+    
+    // Find ALL sessions with this code
+    const sessions = await Session.find({ sessionCode });
+    console.log(`[Sessions] Found ${sessions.length} sessions with code ${sessionCode}`);
+    
+    if (sessions.length > 1) {
+      console.warn('[Sessions] DUPLICATE SESSIONS FOUND!');
+      sessions.forEach(s => {
+        console.log(`  - ID: ${s._id}, Status: ${s.status}, Created: ${s.createdAt}`);
+      });
+    }
+    
+    // Get the most recent active session or the most recent one
+    const session = sessions.find(s => s.status === 'active') || 
+                   sessions.sort((a, b) => b.createdAt - a.createdAt)[0];
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
+    console.log(`[Sessions] Using session ${session._id} for responses`);
+    console.log(`[Sessions] Session has ${session.responses?.length || 0} responses`);
+    
     // Group responses by question
     const responsesByQuestion = {};
-    session.responses.forEach(response => {
-      const questionId = response.questionId;
-      if (!responsesByQuestion[questionId]) {
-        responsesByQuestion[questionId] = [];
-      }
-      responsesByQuestion[questionId].push({
-        participantId: response.participantId,
-        answer: response.answer,
-        submittedAt: response.submittedAt
+    if (session.responses && session.responses.length > 0) {
+      session.responses.forEach(response => {
+        const questionId = response.questionId;
+        if (!responsesByQuestion[questionId]) {
+          responsesByQuestion[questionId] = [];
+        }
+        responsesByQuestion[questionId].push({
+          participantId: response.participantId,
+          answer: response.answer,
+          submittedAt: response.submittedAt
+        });
       });
-    });
+    }
     
     res.json({
       success: true,
-      responses: session.responses,
+      responses: session.responses || [],
       responsesByQuestion,
-      totalResponses: session.responses.length
+      totalResponses: session.responses?.length || 0,
+      sessionId: session._id,
+      sessionStatus: session.status
     });
     
   } catch (error) {
@@ -714,19 +756,32 @@ router.get('/code/:sessionCode/responses', async (req, res) => {
 router.post('/code/:sessionCode/respond', async (req, res) => {
   try {
     const { questionId, answer, timeSpent, participantId } = req.body;
+    const sessionCode = req.params.sessionCode.toUpperCase();
+    
     console.log('[Sessions] Response submission:', {
-      sessionCode: req.params.sessionCode,
+      sessionCode,
       questionId,
       answer,
       participantId
     });
     
-    const session = await Session.findOne({ 
-      sessionCode: req.params.sessionCode.toUpperCase() 
-    });
+    // Find ALL sessions with this code
+    const sessions = await Session.find({ sessionCode });
+    console.log(`[Sessions] Found ${sessions.length} sessions with code ${sessionCode}`);
+    
+    if (sessions.length > 1) {
+      console.warn('[Sessions] DUPLICATE SESSIONS FOUND!');
+      sessions.forEach(s => {
+        console.log(`  - ID: ${s._id}, Status: ${s.status}, Created: ${s.createdAt}`);
+      });
+    }
+    
+    // Get the most recent active session or the most recent one
+    const session = sessions.find(s => s.status === 'active') || 
+                   sessions.sort((a, b) => b.createdAt - a.createdAt)[0];
     
     if (!session) {
-      console.error('[Sessions] Session not found for response:', req.params.sessionCode);
+      console.error('[Sessions] Session not found for response:', sessionCode);
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
@@ -773,6 +828,69 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     });
   } catch (error) {
     console.error('Error submitting response:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Cleanup duplicate sessions (admin endpoint)
+router.post('/cleanup-duplicates', async (req, res) => {
+  try {
+    const { adminKey } = req.body;
+    
+    // Simple security check
+    if (adminKey !== 'cleanup-2024') {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    // Find all sessions grouped by code
+    const sessions = await Session.find({}).sort({ sessionCode: 1, createdAt: -1 });
+    
+    const sessionsByCode = {};
+    sessions.forEach(session => {
+      if (!sessionsByCode[session.sessionCode]) {
+        sessionsByCode[session.sessionCode] = [];
+      }
+      sessionsByCode[session.sessionCode].push(session);
+    });
+    
+    let cleanedCount = 0;
+    const cleanupReport = [];
+    
+    // For each session code with duplicates
+    for (const [code, duplicateSessions] of Object.entries(sessionsByCode)) {
+      if (duplicateSessions.length > 1) {
+        // Sort by creation date, newest first
+        duplicateSessions.sort((a, b) => b.createdAt - a.createdAt);
+        
+        // Keep the newest active session, or just the newest if none are active
+        const activeSession = duplicateSessions.find(s => s.status === 'active');
+        const sessionToKeep = activeSession || duplicateSessions[0];
+        
+        // Delete the others
+        for (const session of duplicateSessions) {
+          if (session._id.toString() !== sessionToKeep._id.toString()) {
+            await Session.deleteOne({ _id: session._id });
+            cleanedCount++;
+            cleanupReport.push({
+              code,
+              deletedId: session._id,
+              status: session.status,
+              created: session.createdAt,
+              responses: session.responses?.length || 0
+            });
+          }
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Cleaned up ${cleanedCount} duplicate sessions`,
+      report: cleanupReport
+    });
+    
+  } catch (error) {
+    console.error('Cleanup error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
