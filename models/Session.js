@@ -76,8 +76,8 @@ sessionSchema.pre('save', function(next) {
   next();
 });
 
-// Indexes for performance
-sessionSchema.index({ sessionCode: 1 });
+// Indexes for performance and uniqueness
+sessionSchema.index({ sessionCode: 1 }, { unique: true });
 sessionSchema.index({ instructorId: 1 });
 sessionSchema.index({ status: 1 });
 

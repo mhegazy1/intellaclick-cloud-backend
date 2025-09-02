@@ -12,6 +12,27 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Test endpoint - returns hardcoded question
+router.get('/test-question', (req, res) => {
+  res.set({
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*'
+  });
+  
+  res.json({
+    success: true,
+    question: {
+      id: 'test-123',
+      questionText: 'This is a test question',
+      type: 'multiple_choice',
+      options: [
+        { id: 'A', text: 'Test Option A' },
+        { id: 'B', text: 'Test Option B' }
+      ]
+    }
+  });
+});
+
 // Create a test session (for development)
 router.post('/test', async (req, res) => {
   try {
@@ -351,9 +372,22 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
   });
   
   try {
-    const session = await Session.findOne({ 
-      sessionCode: req.params.sessionCode.toUpperCase() 
-    });
+    const sessionCode = req.params.sessionCode.toUpperCase();
+    
+    // Find ALL sessions with this code
+    const sessions = await Session.find({ sessionCode });
+    console.log(`[Sessions] Found ${sessions.length} sessions with code ${sessionCode}`);
+    
+    if (sessions.length > 1) {
+      console.warn('[Sessions] DUPLICATE SESSIONS FOUND!');
+      sessions.forEach(s => {
+        console.log(`  - ID: ${s._id}, Status: ${s.status}, Created: ${s.createdAt}`);
+      });
+    }
+    
+    // Get the most recent active session or the most recent one
+    const session = sessions.find(s => s.status === 'active') || 
+                   sessions.sort((a, b) => b.createdAt - a.createdAt)[0];
     
     if (!session) {
       return res.status(404).json({ success: false, error: 'Session not found' });
