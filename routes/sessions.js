@@ -764,16 +764,34 @@ router.get('/code/:sessionCode/responses', async (req, res) => {
     console.log(`[Sessions] Using session ${session._id} for responses`);
     console.log(`[Sessions] Session has ${session.responses?.length || 0} responses`);
     
-    // Group responses by question
+    // Group responses by question and include participant names
     const responsesByQuestion = {};
+    const responsesWithNames = [];
+    
     if (session.responses && session.responses.length > 0) {
+      // Create a map of participant IDs to names for quick lookup
+      const participantMap = {};
+      session.participants.forEach(p => {
+        participantMap[p.participantId] = p.name || 'Anonymous';
+      });
+      
       session.responses.forEach(response => {
         const questionId = response.questionId;
+        const participantName = participantMap[response.participantId] || response.participantId;
+        
+        // Add to responses with names
+        responsesWithNames.push({
+          ...response.toObject ? response.toObject() : response,
+          participantName: participantName,
+          name: participantName // Add both fields for compatibility
+        });
+        
         if (!responsesByQuestion[questionId]) {
           responsesByQuestion[questionId] = [];
         }
         responsesByQuestion[questionId].push({
           participantId: response.participantId,
+          participantName: participantName,
           answer: response.answer,
           submittedAt: response.submittedAt
         });
@@ -782,7 +800,7 @@ router.get('/code/:sessionCode/responses', async (req, res) => {
     
     res.json({
       success: true,
-      responses: session.responses || [],
+      responses: responsesWithNames,
       responsesByQuestion,
       totalResponses: session.responses?.length || 0,
       sessionId: session._id,
