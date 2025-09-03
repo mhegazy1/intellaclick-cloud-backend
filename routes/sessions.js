@@ -192,7 +192,10 @@ router.get('/code/:sessionCode', async (req, res) => {
         title: session.title,
         status: session.status,
         currentQuestion: session.currentQuestion,
-        participantCount: session.participants.length
+        participantCount: session.participants.length,
+        responseCount: session.responses ? session.responses.length : 0,
+        totalQuestions: session.totalQuestions || 0,
+        questionCount: session.questionsSent ? session.questionsSent.length : 0
       }
     });
     
@@ -208,8 +211,8 @@ router.get('/code/:sessionCode', async (req, res) => {
 // Join session as participant
 router.post('/join', async (req, res) => {
   try {
-    const { sessionCode, name, userId } = req.body;
-    console.log('[Sessions] Join request:', { sessionCode, name, userId });
+    const { sessionCode, name, userId, deviceId } = req.body;
+    console.log('[Sessions] Join request:', { sessionCode, name, userId, deviceId });
     
     const session = await Session.findOne({ 
       sessionCode: sessionCode.toUpperCase() 
@@ -229,45 +232,75 @@ router.post('/join', async (req, res) => {
       });
     }
     
-    // Generate participant ID
-    const participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
-    
     // Initialize participants array if it doesn't exist
     if (!session.participants) {
       session.participants = [];
     }
     
-    console.log('[Sessions] Current participants before adding:', session.participants.length);
+    console.log('[Sessions] Current participants before checking:', session.participants.length);
     
-    // Add participant to session
-    session.participants.push({
-      userId: userId || null,
-      participantId,
-      name: name || 'Anonymous',
-      joinedAt: new Date()
-    });
+    // Check if participant already exists by deviceId
+    let existingParticipant = null;
+    if (deviceId) {
+      existingParticipant = session.participants.find(p => p.deviceId === deviceId);
+    }
     
-    console.log('[Sessions] Saving session with new participant');
-    await session.save();
-    
-    // Verify the save worked
-    const updatedSession = await Session.findById(session._id);
-    console.log('[Sessions] Session after join:', {
-      participantCount: updatedSession.participants?.length || 0,
-      lastParticipant: updatedSession.participants?.[updatedSession.participants.length - 1]
-    });
-    
-    res.json({
-      success: true,
-      participantId,
-      session: {
-        id: session._id,
-        sessionCode: session.sessionCode,
-        title: session.title,
-        status: session.status,
-        currentQuestion: session.currentQuestion
-      }
-    });
+    if (existingParticipant) {
+      console.log('[Sessions] Found existing participant with deviceId:', deviceId);
+      // Update participant name and last join time
+      existingParticipant.name = name || existingParticipant.name || 'Anonymous';
+      existingParticipant.lastJoinedAt = new Date();
+      
+      console.log('[Sessions] Updating existing participant');
+      await session.save();
+      
+      res.json({
+        success: true,
+        participantId: existingParticipant.participantId,
+        session: {
+          id: session._id,
+          sessionCode: session.sessionCode,
+          title: session.title,
+          status: session.status,
+          currentQuestion: session.currentQuestion
+        }
+      });
+    } else {
+      // Generate new participant ID
+      const participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
+      
+      // Add new participant to session
+      session.participants.push({
+        userId: userId || null,
+        participantId,
+        deviceId: deviceId || null,
+        name: name || 'Anonymous',
+        joinedAt: new Date(),
+        lastJoinedAt: new Date()
+      });
+      
+      console.log('[Sessions] Saving session with new participant');
+      await session.save();
+      
+      // Verify the save worked
+      const updatedSession = await Session.findById(session._id);
+      console.log('[Sessions] Session after join:', {
+        participantCount: updatedSession.participants?.length || 0,
+        lastParticipant: updatedSession.participants?.[updatedSession.participants.length - 1]
+      });
+      
+      res.json({
+        success: true,
+        participantId,
+        session: {
+          id: session._id,
+          sessionCode: session.sessionCode,
+          title: session.title,
+          status: session.status,
+          currentQuestion: session.currentQuestion
+        }
+      });
+    }
     
   } catch (error) {
     console.error('Error joining session:', error);
@@ -595,6 +628,16 @@ router.post('/:id/questions', auth, async (req, res) => {
     // Set as current question
     session.currentQuestion = question;
     session.currentQuestionIndex = (session.currentQuestionIndex || 0) + 1;
+    
+    // Track question in questionsSent array
+    session.questionsSent.push({
+      questionId: question.questionId,
+      questionText: question.questionText,
+      sentAt: new Date()
+    });
+    
+    // Update total questions count
+    session.totalQuestions = session.questionsSent.length;
     
     // CRITICAL: Mark currentQuestion as modified for Mongoose
     session.markModified('currentQuestion');

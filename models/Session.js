@@ -42,8 +42,13 @@ const sessionSchema = new mongoose.Schema({
       ref: 'User'
     },
     participantId: String,
+    deviceId: String,
     name: String,
     joinedAt: {
+      type: Date,
+      default: Date.now
+    },
+    lastJoinedAt: {
       type: Date,
       default: Date.now
     }
@@ -58,6 +63,18 @@ const sessionSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  questionsSent: [{
+    questionId: String,
+    questionText: String,
+    sentAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  totalQuestions: {
+    type: Number,
+    default: 0
+  },
   startedAt: Date,
   endedAt: Date,
   createdAt: {
