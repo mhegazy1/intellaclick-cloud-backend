@@ -17,7 +17,9 @@ router.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    message: 'Sessions API is running'
+    message: 'Sessions API is running',
+    version: '2025-09-05-requireLogin-fix',
+    debugEnabled: true
   });
 });
 
