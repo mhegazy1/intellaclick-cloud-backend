@@ -92,7 +92,8 @@ router.post('/test', async (req, res) => {
   console.log('[Sessions] Auth user:', req.user);
   
   try {
-    const { sessionCode, title, description } = req.body;
+    const { sessionCode, title, description, requireLogin } = req.body;
+    console.log('[Sessions] /test endpoint - requireLogin received:', requireLogin);
     
     // For test sessions, use a default instructor ID if not authenticated
     const instructorId = req.user?.id || '507f1f77bcf86cd799439011'; // MongoDB ObjectId format
@@ -119,7 +120,7 @@ router.post('/test', async (req, res) => {
       title: title || 'Test Session',
       description: description || 'Created from desktop app',
       instructorId,
-      requireLogin: false, // Test sessions don't require login
+      requireLogin: requireLogin === true || requireLogin === 'true', // Accept requireLogin from request
       status: 'waiting'
     });
     
@@ -133,6 +134,7 @@ router.post('/test', async (req, res) => {
         sessionCode: session.sessionCode,
         title: session.title,
         status: session.status,
+        requireLogin: session.requireLogin,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
       }
     });
