@@ -3,6 +3,15 @@ const router = express.Router();
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
 
+// Debug middleware to log all requests to this router
+router.use((req, res, next) => {
+  console.log(`[Sessions Router] ${req.method} ${req.path} called`);
+  if (req.method === 'POST') {
+    console.log('[Sessions Router] POST body preview:', JSON.stringify(req.body).substring(0, 200));
+  }
+  next();
+});
+
 // Health check endpoint
 router.get('/health', (req, res) => {
   res.json({ 
@@ -35,6 +44,10 @@ router.get('/test-question', (req, res) => {
 
 // Create a test session (for development)
 router.post('/test', async (req, res) => {
+  console.log('[Sessions] POST /test endpoint called');
+  console.log('[Sessions] Request body:', JSON.stringify(req.body, null, 2));
+  console.log('[Sessions] Auth user:', req.user);
+  
   try {
     const { sessionCode, title, description } = req.body;
     
