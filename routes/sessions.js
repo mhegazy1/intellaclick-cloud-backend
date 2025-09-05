@@ -126,6 +126,8 @@ router.post('/test', async (req, res) => {
     
     await session.save();
     
+    console.log('[Sessions] Test session saved with requireLogin:', session.requireLogin);
+    
     // Return session info with public URL
     res.json({
       success: true,
@@ -341,10 +343,13 @@ router.post('/join', async (req, res) => {
     }
     
     console.log('[Sessions] Session requireLogin:', session.requireLogin);
+    console.log('[Sessions] Session requireLogin type:', typeof session.requireLogin);
     console.log('[Sessions] User ID provided:', userId);
+    console.log('[Sessions] User ID type:', typeof userId);
+    console.log('[Sessions] RequireLogin check result:', session.requireLogin && !userId);
     
     // Check if login is required for this session
-    if (session.requireLogin && !userId) {
+    if (session.requireLogin === true && !userId) {
       console.log('[Sessions] Login required but no userId provided - rejecting join');
       return res.status(401).json({
         success: false,
@@ -353,6 +358,8 @@ router.post('/join', async (req, res) => {
         message: 'This session requires you to be logged in. Please log in to join.'
       });
     }
+    
+    console.log('[Sessions] Login check passed, allowing join');
     
     // Initialize participants array if it doesn't exist
     if (!session.participants) {
