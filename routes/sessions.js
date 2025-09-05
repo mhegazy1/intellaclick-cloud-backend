@@ -42,6 +42,49 @@ router.get('/test-question', (req, res) => {
   });
 });
 
+// Debug endpoint to check PS32NM session
+router.get('/debug-ps32nm', async (req, res) => {
+  try {
+    console.log('[Sessions] Checking PS32NM session...');
+    
+    const sessions = await Session.find({ sessionCode: 'PS32NM' });
+    
+    if (sessions.length === 0) {
+      return res.json({
+        success: true,
+        found: false,
+        message: 'No session found with code PS32NM'
+      });
+    }
+    
+    const sessionDetails = sessions.map(session => ({
+      id: session._id,
+      sessionCode: session.sessionCode,
+      title: session.title,
+      requireLogin: session.requireLogin,
+      status: session.status,
+      created: session.createdAt,
+      updated: session.updatedAt,
+      participants: session.participants?.length || 0,
+      responses: session.responses?.length || 0
+    }));
+    
+    res.json({
+      success: true,
+      found: true,
+      count: sessions.length,
+      sessions: sessionDetails
+    });
+    
+  } catch (error) {
+    console.error('Error checking PS32NM session:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Create a test session (for development)
 router.post('/test', async (req, res) => {
   console.log('[Sessions] POST /test endpoint called');
@@ -187,6 +230,40 @@ router.get('/:id/participants', auth, async (req, res) => {
   } catch (error) {
     console.error('Get participants error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to check a specific session
+router.get('/debug/:sessionCode', async (req, res) => {
+  try {
+    const session = await Session.findOne({ 
+      sessionCode: req.params.sessionCode.toUpperCase() 
+    });
+    
+    if (!session) {
+      return res.json({ 
+        found: false, 
+        message: 'Session not found',
+        searchedFor: req.params.sessionCode.toUpperCase()
+      });
+    }
+    
+    res.json({
+      found: true,
+      session: {
+        id: session._id,
+        sessionCode: session.sessionCode,
+        title: session.title,
+        requireLogin: session.requireLogin,
+        requireLoginType: typeof session.requireLogin,
+        requireLoginRaw: session.requireLogin,
+        status: session.status,
+        createdAt: session.createdAt,
+        allFields: Object.keys(session.toObject())
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
