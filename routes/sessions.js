@@ -160,6 +160,8 @@ router.post('/', auth, async (req, res) => {
     console.log('[Sessions] - title:', title);
     console.log('[Sessions] - requireLogin:', requireLogin);
     console.log('[Sessions] - requireLogin type:', typeof requireLogin);
+    console.log('[Sessions] - requireLogin === true:', requireLogin === true);
+    console.log('[Sessions] - requireLogin === "true":', requireLogin === 'true');
     console.log('[Sessions] - User:', req.user);
     
     // Check if session code already exists
@@ -184,7 +186,7 @@ router.post('/', auth, async (req, res) => {
       title,
       description,
       instructorId: req.user.userId || req.user.id, // Handle both token formats
-      requireLogin: requireLogin || false,
+      requireLogin: requireLogin === true || requireLogin === 'true',
       status: 'waiting'
     });
     
