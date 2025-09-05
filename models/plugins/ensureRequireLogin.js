@@ -1,4 +1,5 @@
 // Mongoose plugin to ensure requireLogin field is always present
+const mongoose = require('mongoose');
 
 function ensureRequireLoginPlugin(schema) {
   // Add a pre-validate hook
