@@ -63,6 +63,7 @@ router.post('/test', async (req, res) => {
       title: title || 'Test Session',
       description: description || 'Created from desktop app',
       instructorId,
+      requireLogin: false, // Test sessions don't require login
       status: 'waiting'
     });
     
@@ -92,7 +93,14 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description } = req.body;
+    const { sessionCode, title, description, requireLogin } = req.body;
+    
+    console.log('[Sessions] Create session request:');
+    console.log('[Sessions] - sessionCode:', sessionCode);
+    console.log('[Sessions] - title:', title);
+    console.log('[Sessions] - requireLogin:', requireLogin);
+    console.log('[Sessions] - requireLogin type:', typeof requireLogin);
+    console.log('[Sessions] - User:', req.user);
     
     // Check if session code already exists
     const existingSession = await Session.findOne({ sessionCode });
@@ -116,10 +124,16 @@ router.post('/', auth, async (req, res) => {
       title,
       description,
       instructorId: req.user.userId || req.user.id, // Handle both token formats
+      requireLogin: requireLogin || false,
       status: 'waiting'
     });
     
     await session.save();
+    
+    console.log('[Sessions] Session saved:');
+    console.log('[Sessions] - ID:', session._id);
+    console.log('[Sessions] - requireLogin in DB:', session.requireLogin);
+    console.log('[Sessions] - requireLogin type:', typeof session.requireLogin);
     
     res.json({
       success: true,
@@ -128,6 +142,7 @@ router.post('/', auth, async (req, res) => {
         sessionCode: session.sessionCode,
         title: session.title,
         status: session.status,
+        requireLogin: session.requireLogin,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
       }
     });
@@ -195,7 +210,8 @@ router.get('/code/:sessionCode', async (req, res) => {
         participantCount: session.participants.length,
         responseCount: session.responses ? session.responses.length : 0,
         totalQuestions: session.totalQuestions || 0,
-        questionCount: session.questionsSent ? session.questionsSent.length : 0
+        questionCount: session.questionsSent ? session.questionsSent.length : 0,
+        requireLogin: session.requireLogin || false
       }
     });
     
@@ -229,6 +245,20 @@ router.post('/join', async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         error: 'Session has ended' 
+      });
+    }
+    
+    console.log('[Sessions] Session requireLogin:', session.requireLogin);
+    console.log('[Sessions] User ID provided:', userId);
+    
+    // Check if login is required for this session
+    if (session.requireLogin && !userId) {
+      console.log('[Sessions] Login required but no userId provided - rejecting join');
+      return res.status(401).json({
+        success: false,
+        error: 'Login required',
+        requireLogin: true,
+        message: 'This session requires you to be logged in. Please log in to join.'
       });
     }
     
