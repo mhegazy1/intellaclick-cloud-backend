@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const ensureRequireLoginPlugin = require('./plugins/ensureRequireLogin');
 
 const sessionSchema = new mongoose.Schema({
   sessionCode: {
@@ -25,6 +26,12 @@ const sessionSchema = new mongoose.Schema({
     type: String,
     enum: ['waiting', 'active', 'ended'],
     default: 'waiting'
+  },
+  requireLogin: {
+    type: Boolean,
+    default: false,
+    required: false,
+    description: 'Whether students must be logged in to join this session'
   },
   currentQuestion: {
     questionId: String,
@@ -87,15 +94,59 @@ const sessionSchema = new mongoose.Schema({
   }
 });
 
-// Update timestamp on save
+// Update timestamp on save and ensure requireLogin is set
 sessionSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
+  
+  // Ensure requireLogin is set (handle undefined/null cases)
+  if (this.requireLogin === undefined || this.requireLogin === null) {
+    this.requireLogin = false;
+  }
+  
+  // Log for debugging
+  if (this.isNew || this.isModified('requireLogin')) {
+    console.log('[Session Model] Pre-save - requireLogin:', this.requireLogin, 'type:', typeof this.requireLogin);
+  }
+  
   next();
 });
+
+// Post-save hook to verify requireLogin was saved
+sessionSchema.post('save', async function(doc) {
+  if (doc.isNew || doc.wasNew) {
+    console.log('[Session Model] Post-save - Session created with:', {
+      id: doc._id,
+      sessionCode: doc.sessionCode,
+      requireLogin: doc.requireLogin,
+      requireLoginType: typeof doc.requireLogin
+    });
+    
+    // Verify the field exists in the database
+    const Session = mongoose.model('Session');
+    const verifySession = await Session.findById(doc._id).select('sessionCode requireLogin');
+    console.log('[Session Model] Post-save verification:', {
+      sessionCode: verifySession.sessionCode,
+      requireLogin: verifySession.requireLogin,
+      requireLoginExists: 'requireLogin' in verifySession.toObject()
+    });
+  }
+});
+
+// Apply the ensure requireLogin plugin
+sessionSchema.plugin(ensureRequireLoginPlugin);
 
 // Indexes for performance and uniqueness
 sessionSchema.index({ sessionCode: 1 }, { unique: true });
 sessionSchema.index({ instructorId: 1 });
 sessionSchema.index({ status: 1 });
+
+// Add a static method to ensure requireLogin field in queries
+sessionSchema.statics.findOneWithRequireLogin = async function(query) {
+  const session = await this.findOne(query);
+  if (session && (session.requireLogin === undefined || session.requireLogin === null)) {
+    session.requireLogin = false;
+  }
+  return session;
+};
 
 module.exports = mongoose.model('Session', sessionSchema);

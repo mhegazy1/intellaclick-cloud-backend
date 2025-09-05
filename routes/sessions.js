@@ -117,18 +117,41 @@ router.post('/test', async (req, res) => {
     }
     
     // Create new session
-    const session = new Session({
+    const sessionData = {
       sessionCode,
       title: title || 'Test Session',
       description: description || 'Created from desktop app',
       instructorId,
-      requireLogin: requireLogin === true || requireLogin === 'true', // Accept requireLogin from request
       status: 'waiting'
+    };
+    
+    // Explicitly set requireLogin with proper boolean conversion
+    sessionData.requireLogin = requireLogin === true || requireLogin === 'true' || requireLogin === 1 || requireLogin === '1';
+    
+    console.log('[Sessions] Creating test session with data:', JSON.stringify(sessionData, null, 2));
+    
+    const session = new Session(sessionData);
+    
+    // Explicitly mark requireLogin as modified to ensure it's saved
+    session.markModified('requireLogin');
+    
+    console.log('[Sessions] Session object before save:', {
+      requireLogin: session.requireLogin,
+      requireLoginType: typeof session.requireLogin,
+      isModified: session.isModified('requireLogin')
     });
     
     await session.save();
     
     console.log('[Sessions] Test session saved with requireLogin:', session.requireLogin);
+    
+    // Verify the save by querying back
+    const savedSession = await Session.findById(session._id);
+    console.log('[Sessions] Verification after save:', {
+      id: savedSession._id,
+      requireLogin: savedSession.requireLogin,
+      requireLoginInDB: 'requireLogin' in savedSession.toObject()
+    });
     
     // Return session info with public URL
     res.json({
@@ -183,13 +206,29 @@ router.post('/', auth, async (req, res) => {
     }
     
     // Create new session
-    const session = new Session({
+    const sessionData = {
       sessionCode,
       title,
       description,
       instructorId: req.user.userId || req.user.id, // Handle both token formats
-      requireLogin: requireLogin === true || requireLogin === 'true',
       status: 'waiting'
+    };
+    
+    // Explicitly set requireLogin with proper boolean conversion
+    sessionData.requireLogin = requireLogin === true || requireLogin === 'true' || requireLogin === 1 || requireLogin === '1';
+    
+    console.log('[Sessions] Creating session with data:', JSON.stringify(sessionData, null, 2));
+    
+    const session = new Session(sessionData);
+    
+    // Explicitly mark requireLogin as modified to ensure it's saved
+    session.markModified('requireLogin');
+    
+    console.log('[Sessions] Session object before save:', {
+      requireLogin: session.requireLogin,
+      requireLoginExists: 'requireLogin' in session,
+      schemaHasRequireLogin: !!session.schema.paths.requireLogin,
+      isModified: session.isModified('requireLogin')
     });
     
     await session.save();
@@ -198,6 +237,15 @@ router.post('/', auth, async (req, res) => {
     console.log('[Sessions] - ID:', session._id);
     console.log('[Sessions] - requireLogin in DB:', session.requireLogin);
     console.log('[Sessions] - requireLogin type:', typeof session.requireLogin);
+    
+    // Verify the save by querying back
+    const savedSession = await Session.findById(session._id);
+    console.log('[Sessions] Verification after save:', {
+      id: savedSession._id,
+      sessionCode: savedSession.sessionCode,
+      requireLogin: savedSession.requireLogin,
+      requireLoginInDB: 'requireLogin' in savedSession.toObject()
+    });
     
     res.json({
       success: true,
@@ -297,6 +345,9 @@ router.get('/code/:sessionCode', async (req, res) => {
       });
     }
     
+    // Ensure requireLogin is always included in response
+    const requireLogin = session.requireLogin === true ? true : false;
+    
     res.json({
       success: true,
       session: {
@@ -309,7 +360,7 @@ router.get('/code/:sessionCode', async (req, res) => {
         responseCount: session.responses ? session.responses.length : 0,
         totalQuestions: session.totalQuestions || 0,
         questionCount: session.questionsSent ? session.questionsSent.length : 0,
-        requireLogin: session.requireLogin || false
+        requireLogin: requireLogin
       }
     });
     
@@ -344,6 +395,15 @@ router.post('/join', async (req, res) => {
         success: false, 
         error: 'Session has ended' 
       });
+    }
+    
+    // Ensure requireLogin field exists (safeguard for existing sessions)
+    if (session.requireLogin === undefined || session.requireLogin === null) {
+      session.requireLogin = false;
+      // Try to save the fix
+      session.markModified('requireLogin');
+      await session.save();
+      console.log('[Sessions] Fixed missing requireLogin field for session:', session.sessionCode);
     }
     
     console.log('[Sessions] Session requireLogin:', session.requireLogin);
