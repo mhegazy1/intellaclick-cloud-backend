@@ -639,13 +639,13 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
     
     // Transform currentQuestion to match frontend expectations
     let question = null;
-    if (session.currentQuestion && session.currentQuestion.questionText) {
+    if (session.currentQuestion && (session.currentQuestion.questionText || session.currentQuestion.text)) {
       try {
         question = {
           id: session.currentQuestion.questionId,
           sessionId: session._id,
-          questionText: session.currentQuestion.questionText,  // Changed from 'text' to 'questionText'
-          type: session.currentQuestion.questionType,
+          questionText: session.currentQuestion.questionText || session.currentQuestion.text,  // Support both fields
+          type: session.currentQuestion.questionType || session.currentQuestion.type,
           options: session.currentQuestion.options && session.currentQuestion.options.length > 0 
             ? session.currentQuestion.options.map((opt, idx) => ({
                 id: String.fromCharCode(65 + idx), // A, B, C, D
@@ -804,19 +804,30 @@ router.post('/:id/questions', auth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Unauthorized' });
     }
     
-    const { questionId, questionText, questionType, options, correctAnswer, points, timeLimit } = req.body;
+    const { questionId, questionText, questionType, options, correctAnswer, points, timeLimit, text, type } = req.body;
     
-    // Create question object
+    // Create question object with field normalization
     const question = {
       questionId: questionId || `Q${Date.now()}`,
-      questionText,
-      questionType,
+      questionText: questionText || text,  // Support both field names
+      questionType: questionType || type || 'multiple_choice',  // Support both field names
       options,
       correctAnswer,
       points: points || 10,
       timeLimit: timeLimit || 30,
       startedAt: new Date()
     };
+    
+    // Ensure questionText is set
+    if (!question.questionText) {
+      console.error('[Sessions] Missing question text!', req.body);
+      return res.status(400).json({ success: false, error: 'Question text is required' });
+    }
+    
+    console.log('[Sessions] Normalized question:', {
+      hasQuestionText: !!question.questionText,
+      questionText: question.questionText.substring(0, 50) + '...'
+    });
     
     // Set as current question
     session.currentQuestion = question;
