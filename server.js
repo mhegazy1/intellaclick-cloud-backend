@@ -29,6 +29,11 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
+    // Allow file:// protocol for local HTML files (debugging)
+    if (origin && origin.startsWith('file://')) {
+      return callback(null, true);
+    }
+    
     // Get allowed origins from environment variable
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(url => url.trim()) || [];
     
@@ -36,7 +41,8 @@ const corsOptions = {
     const defaultOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
-      'http://localhost:5173'
+      'http://localhost:5173',
+      'http://127.0.0.1:5500' // Live Server extension
     ];
     
     // In production, add common Netlify patterns
