@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Analytics - IntellaClick</title>
+    <style>
+        :root {
+            --primary-color: #4F46E5;
+            --primary-hover: #4338CA;
+            --secondary-color: #10B981;
+            --danger-color: #EF4444;
+            --warning-color: #F59E0B;
+            --background: #F9FAFB;
+            --surface: #FFFFFF;
+            --text-primary: #111827;
+            --text-secondary: #6B7280;
+            --border: #E5E7EB;
+            --success-bg: #D1FAE5;
+            --success-text: #065F46;
+            --error-bg: #FEE2E2;
+            --error-text: #991B1B;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: var(--surface);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .back-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .class-info {
+            display: flex;
+            gap: 24px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .date-filter {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 32px;
+            background-color: var(--surface);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .date-filter select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background-color: white;
+            font-size: 14px;
+        }
+
+        .overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background-color: var(--surface);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-change.positive {
+            color: var(--secondary-color);
+        }
+
+        .stat-change.negative {
+            color: var(--danger-color);
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .chart-container {
+            background-color: var(--surface);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .chart-placeholder {
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--background);
+            border-radius: 8px;
+            color: var(--text-secondary);
+        }
+
+        .student-table {
+            background-color: var(--surface);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background-color: var(--background);
+        }
+
+        th {
+            padding: 12px 20px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+        }
+
+        th:hover {
+            background-color: #F3F4F6;
+        }
+
+        td {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        tr:hover {
+            background-color: var(--background);
+        }
+
+        .student-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .performance-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .progress-bar {
+            width: 100px;
+            height: 8px;
+            background-color: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.high {
+            background-color: var(--secondary-color);
+        }
+
+        .progress-fill.medium {
+            background-color: var(--warning-color);
+        }
+
+        .progress-fill.low {
+            background-color: var(--danger-color);
+        }
+
+        .export-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .export-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+            font-size: 18px;
+        }
+
+        @media (max-width: 768px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+
+            .overview-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .table-responsive {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 600px;
+            }
+
+            .export-btn {
+                bottom: 16px;
+                right: 16px;
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1 id="className">Class Analytics</h1>
+                <a href="/instructor-classes.html" class="back-btn">
+                    ← Back to Classes
+                </a>
+            </div>
+            <div class="class-info">
+                <span>
+                    <strong>Code:</strong> <span id="classCode">Loading...</span>
+                </span>
+                <span>
+                    <strong>Term:</strong> <span id="classTerm">Loading...</span>
+                </span>
+                <span>
+                    <strong>Students:</strong> <span id="studentCount">0</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="date-filter">
+            <label>Time Period:</label>
+            <select id="periodFilter" onchange="loadAnalytics()">
+                <option value="week">Last 7 Days</option>
+                <option value="month" selected>Last 30 Days</option>
+                <option value="term">Full Term</option>
+                <option value="custom">Custom Range</option>
+            </select>
+        </div>
+
+        <div class="overview-stats">
+            <div class="stat-card">
+                <div class="stat-label">Average Attendance</div>
+                <div class="stat-value" id="avgAttendance">0%</div>
+                <div class="stat-change positive">
+                    <span>↑ 2.5%</span>
+                    <span>vs last period</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Class Performance</div>
+                <div class="stat-value" id="avgPerformance">0%</div>
+                <div class="stat-change positive">
+                    <span>↑ 1.2%</span>
+                    <span>vs last period</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Sessions</div>
+                <div class="stat-value" id="totalSessions">0</div>
+                <div class="stat-change">
+                    <span>12 this month</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Engagement Rate</div>
+                <div class="stat-value" id="engagementRate">0%</div>
+                <div class="stat-change negative">
+                    <span>↓ 0.5%</span>
+                    <span>vs last period</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-container">
+                <h2>Attendance Trend</h2>
+                <div class="chart-placeholder">
+                    <p>Chart visualization would go here</p>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h2>Performance Distribution</h2>
+                <div class="chart-placeholder">
+                    <p>Chart visualization would go here</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="student-table">
+            <div class="table-header">
+                <h2>Student Performance Details</h2>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('name')">Student Name ↕</th>
+                            <th onclick="sortTable('attendance')">Attendance ↕</th>
+                            <th onclick="sortTable('performance')">Performance ↕</th>
+                            <th onclick="sortTable('engagement')">Engagement ↕</th>
+                            <th onclick="sortTable('lastActive')">Last Active ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTableBody">
+                        <tr>
+                            <td colspan="5" class="loading">Loading analytics data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <a href="#" class="export-btn" onclick="exportAnalytics()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            Export Report
+        </a>
+    </div>
+
+    <script>
+        let classId;
+        let classData;
+        let analyticsData = [];
+        let currentSort = { field: 'name', direction: 'asc' };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            classId = urlParams.get('id');
+            
+            if (!classId) {
+                window.location.href = '/instructor-classes.html';
+                return;
+            }
+
+            checkAuth();
+            loadClassData();
+            loadAnalytics();
+        });
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            if (!token || user.role !== 'instructor') {
+                window.location.href = '/login.html';
+            }
+        }
+
+        async function loadClassData() {
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/classes/${classId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to load class data');
+
+                const data = await response.json();
+                classData = data.class;
+                
+                // Update UI
+                document.getElementById('className').textContent = `${classData.name} - Analytics`;
+                document.getElementById('classCode').textContent = `${classData.code}${classData.section ? ' - ' + classData.section : ''}`;
+                document.getElementById('classTerm').textContent = classData.term;
+                document.getElementById('studentCount').textContent = classData.enrollmentSummary?.enrolled || 0;
+            } catch (error) {
+                console.error('Error loading class:', error);
+            }
+        }
+
+        async function loadAnalytics() {
+            const period = document.getElementById('periodFilter').value;
+            
+            try {
+                // For now, generate sample data
+                // In production, this would fetch from API
+                generateSampleAnalytics();
+                updateOverviewStats();
+                renderStudentTable();
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+            }
+        }
+
+        function generateSampleAnalytics() {
+            // Generate sample student data
+            const names = [
+                'Alice Johnson', 'Bob Smith', 'Carol Davis', 'David Brown',
+                'Emma Wilson', 'Frank Miller', 'Grace Lee', 'Henry Taylor',
+                'Iris Chen', 'Jack Anderson', 'Kate Martinez', 'Liam Jackson'
+            ];
+
+            analyticsData = names.map((name, index) => ({
+                name,
+                attendance: Math.floor(Math.random() * 30) + 70,
+                performance: Math.floor(Math.random() * 25) + 75,
+                engagement: Math.floor(Math.random() * 35) + 65,
+                questionsAnswered: Math.floor(Math.random() * 100) + 50,
+                correctAnswers: Math.floor(Math.random() * 80) + 20,
+                lastActive: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000)
+            }));
+        }
+
+        function updateOverviewStats() {
+            const avgAttendance = Math.round(
+                analyticsData.reduce((sum, s) => sum + s.attendance, 0) / analyticsData.length
+            );
+            const avgPerformance = Math.round(
+                analyticsData.reduce((sum, s) => sum + s.performance, 0) / analyticsData.length
+            );
+            const avgEngagement = Math.round(
+                analyticsData.reduce((sum, s) => sum + s.engagement, 0) / analyticsData.length
+            );
+
+            document.getElementById('avgAttendance').textContent = `${avgAttendance}%`;
+            document.getElementById('avgPerformance').textContent = `${avgPerformance}%`;
+            document.getElementById('totalSessions').textContent = '24';
+            document.getElementById('engagementRate').textContent = `${avgEngagement}%`;
+        }
+
+        function renderStudentTable() {
+            const tbody = document.getElementById('studentTableBody');
+            
+            // Sort data
+            const sortedData = [...analyticsData].sort((a, b) => {
+                let aVal = a[currentSort.field];
+                let bVal = b[currentSort.field];
+                
+                if (currentSort.field === 'lastActive') {
+                    aVal = aVal.getTime();
+                    bVal = bVal.getTime();
+                }
+                
+                if (currentSort.direction === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+            
+            tbody.innerHTML = sortedData.map(student => {
+                const performanceClass = student.performance >= 80 ? 'high' : 
+                                       student.performance >= 60 ? 'medium' : 'low';
+                
+                return `
+                    <tr>
+                        <td class="student-name">${student.name}</td>
+                        <td>
+                            <div class="performance-bar">
+                                <div class="progress-bar">
+                                    <div class="progress-fill ${performanceClass}" 
+                                         style="width: ${student.attendance}%"></div>
+                                </div>
+                                <span>${student.attendance}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="performance-bar">
+                                <div class="progress-bar">
+                                    <div class="progress-fill ${performanceClass}" 
+                                         style="width: ${student.performance}%"></div>
+                                </div>
+                                <span>${student.performance}%</span>
+                            </div>
+                        </td>
+                        <td>${student.engagement}%</td>
+                        <td>${formatDate(student.lastActive)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function sortTable(field) {
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'asc';
+            }
+            renderStudentTable();
+        }
+
+        function formatDate(date) {
+            const days = Math.floor((Date.now() - date) / (1000 * 60 * 60 * 24));
+            if (days === 0) return 'Today';
+            if (days === 1) return 'Yesterday';
+            if (days < 7) return `${days} days ago`;
+            return date.toLocaleDateString();
+        }
+
+        async function exportAnalytics() {
+            // In production, this would generate a PDF or CSV report
+            alert('Export functionality would generate a downloadable report');
+        }
+    </script>
+</body>
+</html>

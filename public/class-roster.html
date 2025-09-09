@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Roster - IntellaClick</title>
+    <style>
+        :root {
+            --primary-color: #4F46E5;
+            --primary-hover: #4338CA;
+            --secondary-color: #10B981;
+            --danger-color: #EF4444;
+            --warning-color: #F59E0B;
+            --background: #F9FAFB;
+            --surface: #FFFFFF;
+            --text-primary: #111827;
+            --text-secondary: #6B7280;
+            --border: #E5E7EB;
+            --success-bg: #D1FAE5;
+            --success-text: #065F46;
+            --error-bg: #FEE2E2;
+            --error-text: #991B1B;
+            --warning-bg: #FEF3C7;
+            --warning-text: #92400E;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: var(--surface);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .back-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .class-info {
+            display: flex;
+            gap: 24px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .class-info span {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+            background-color: var(--surface);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .search-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--background);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .btn-danger {
+            background-color: white;
+            color: var(--danger-color);
+            border: 1px solid var(--error-bg);
+        }
+
+        .btn-danger:hover {
+            background-color: var(--error-bg);
+        }
+
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background-color: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .roster-table {
+            background-color: var(--surface);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .filter-tab {
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: transparent;
+            color: var(--text-secondary);
+        }
+
+        .filter-tab.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background-color: var(--background);
+        }
+
+        th {
+            padding: 12px 20px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        tr:hover {
+            background-color: var(--background);
+        }
+
+        .student-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .student-email {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.enrolled {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        .status-badge.pending {
+            background-color: var(--warning-bg);
+            color: var(--warning-text);
+        }
+
+        .status-badge.invited {
+            background-color: #E0E7FF;
+            color: #3730A3;
+        }
+
+        .student-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .student-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background-color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background-color: var(--background);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--surface);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 24px;
+        }
+
+        .modal-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-upload:hover {
+            border-color: var(--primary-color);
+            background-color: var(--background);
+        }
+
+        .file-upload.dragover {
+            border-color: var(--primary-color);
+            background-color: #EEF2FF;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+            justify-content: flex-end;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            background-color: var(--surface);
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateX(400px);
+            transition: transform 0.3s;
+            z-index: 1100;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .upload-results {
+            margin-top: 24px;
+            padding: 20px;
+            background-color: var(--background);
+            border-radius: 8px;
+        }
+
+        .upload-results h3 {
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background-color: white;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .result-item.matched {
+            border-color: var(--secondary-color);
+        }
+
+        .result-item.unmatched {
+            border-color: var(--warning-color);
+        }
+
+        @media (max-width: 768px) {
+            .actions-bar {
+                flex-direction: column;
+            }
+
+            .search-bar {
+                width: 100%;
+                max-width: none;
+            }
+
+            .stats-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .student-stats {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .table-responsive {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1 id="className">Class Roster</h1>
+                <a href="/instructor-classes.html" class="back-btn">
+                    ← Back to Classes
+                </a>
+            </div>
+            <div class="class-info">
+                <span>
+                    <strong>Code:</strong> <span id="classCode">Loading...</span>
+                </span>
+                <span>
+                    <strong>Term:</strong> <span id="classTerm">Loading...</span>
+                </span>
+                <span>
+                    <strong>Join Code:</strong> 
+                    <span id="joinCode" style="font-family: monospace; font-weight: bold;">Loading...</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="stats-summary">
+            <div class="stat-card">
+                <div class="stat-value" id="totalStudents">0</div>
+                <div class="stat-label">Total Students</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="enrolledCount">0</div>
+                <div class="stat-label">Enrolled</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pendingCount">0</div>
+                <div class="stat-label">Pending Approval</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="invitedCount">0</div>
+                <div class="stat-label">Invited</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgAttendance">0%</div>
+                <div class="stat-label">Avg. Attendance</div>
+            </div>
+        </div>
+
+        <div class="actions-bar">
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="showUploadModal()">
+                    Upload Roster
+                </button>
+                <button class="btn btn-secondary" onclick="showInviteModal()">
+                    Invite Students
+                </button>
+                <button class="btn btn-secondary" onclick="exportRoster()">
+                    Export CSV
+                </button>
+            </div>
+            <div class="search-bar">
+                <input type="text" 
+                       class="search-input" 
+                       id="searchInput"
+                       placeholder="Search by name or email..."
+                       onkeyup="filterStudents()">
+            </div>
+        </div>
+
+        <div class="roster-table">
+            <div class="table-header">
+                <h2 class="table-title">Student Roster</h2>
+                <div class="filter-tabs">
+                    <button class="filter-tab active" onclick="filterByStatus('all')">All</button>
+                    <button class="filter-tab" onclick="filterByStatus('enrolled')">Enrolled</button>
+                    <button class="filter-tab" onclick="filterByStatus('pending')">Pending</button>
+                    <button class="filter-tab" onclick="filterByStatus('invited')">Invited</button>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Status</th>
+                            <th>Attendance</th>
+                            <th>Performance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rosterTableBody">
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                <h3>Loading roster...</h3>
+                                <p>Please wait while we load your students</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Roster Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Class Roster</h2>
+                <p>Upload a CSV file with student information</p>
+            </div>
+
+            <div class="form-group">
+                <label>CSV Format Requirements:</label>
+                <ul style="margin-left: 20px; color: var(--text-secondary); font-size: 14px;">
+                    <li>Required columns: firstName, lastName, email</li>
+                    <li>Optional columns: studentId</li>
+                    <li>First row should contain column headers</li>
+                    <li>UTF-8 encoding recommended</li>
+                </ul>
+            </div>
+
+            <div class="file-upload" id="fileUpload">
+                <input type="file" id="fileInput" accept=".csv" style="display: none;">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                    </path>
+                </svg>
+                <p style="margin-top: 12px; font-weight: 500;">Click to upload or drag and drop</p>
+                <p style="font-size: 14px; color: var(--text-secondary);">CSV files only</p>
+            </div>
+
+            <div id="uploadResults" class="upload-results" style="display: none;">
+                <!-- Results will be shown here -->
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="hideModal('uploadModal')">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmUpload" style="display: none;" 
+                        onclick="confirmRosterUpload()">Confirm Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invite Students Modal -->
+    <div id="inviteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Invite Students</h2>
+                <p>Send invitations to students via email</p>
+            </div>
+
+            <div class="form-group">
+                <label for="inviteEmails">Email Addresses</label>
+                <textarea id="inviteEmails" 
+                          rows="6" 
+                          placeholder="Enter email addresses, one per line or comma-separated"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="inviteMessage">Custom Message (Optional)</label>
+                <textarea id="inviteMessage" 
+                          rows="4" 
+                          placeholder="Add a personal message to the invitation..."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="hideModal('inviteModal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="sendInvitations()">Send Invitations</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        let classId;
+        let classData;
+        let enrollments = [];
+        let uploadData = null;
+        let currentFilter = 'all';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            classId = urlParams.get('id');
+            
+            if (!classId) {
+                window.location.href = '/instructor-classes.html';
+                return;
+            }
+
+            checkAuth();
+            loadClassData();
+            loadEnrollments();
+            setupEventListeners();
+        });
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+            }
+        }
+
+        function setupEventListeners() {
+            // File upload
+            const fileUpload = document.getElementById('fileUpload');
+            const fileInput = document.getElementById('fileInput');
+
+            fileUpload.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // Drag and drop
+            fileUpload.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUpload.classList.add('dragover');
+            });
+
+            fileUpload.addEventListener('dragleave', () => {
+                fileUpload.classList.remove('dragover');
+            });
+
+            fileUpload.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUpload.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+        }
+
+        async function loadClassData() {
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/classes/${classId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to load class data');
+
+                classData = await response.json();
+                
+                // Update UI
+                document.getElementById('className').textContent = classData.name;
+                document.getElementById('classCode').textContent = `${classData.code}${classData.section ? ' - ' + classData.section : ''}`;
+                document.getElementById('classTerm').textContent = classData.term;
+                document.getElementById('joinCode').textContent = classData.joinCode || 'N/A';
+            } catch (error) {
+                console.error('Error loading class:', error);
+                showToast('Failed to load class data', 'error');
+            }
+        }
+
+        async function loadEnrollments() {
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/enrollment/class/${classId}/students`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to load enrollments');
+
+                const data = await response.json();
+                enrollments = data.enrollments || [];
+                
+                updateStats();
+                renderRoster();
+            } catch (error) {
+                console.error('Error loading enrollments:', error);
+                showToast('Failed to load student roster', 'error');
+            }
+        }
+
+        function updateStats() {
+            const stats = {
+                total: enrollments.length,
+                enrolled: enrollments.filter(e => e.status === 'enrolled').length,
+                pending: enrollments.filter(e => e.status === 'pending').length,
+                invited: enrollments.filter(e => e.status === 'invited').length
+            };
+
+            document.getElementById('totalStudents').textContent = stats.total;
+            document.getElementById('enrolledCount').textContent = stats.enrolled;
+            document.getElementById('pendingCount').textContent = stats.pending;
+            document.getElementById('invitedCount').textContent = stats.invited;
+
+            // Calculate average attendance
+            const attendanceRates = enrollments
+                .filter(e => e.stats?.attendanceRate !== undefined)
+                .map(e => e.stats.attendanceRate);
+            
+            const avgAttendance = attendanceRates.length > 0
+                ? Math.round(attendanceRates.reduce((a, b) => a + b, 0) / attendanceRates.length)
+                : 0;
+            
+            document.getElementById('avgAttendance').textContent = `${avgAttendance}%`;
+        }
+
+        function renderRoster() {
+            const tbody = document.getElementById('rosterTableBody');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filteredEnrollments = enrollments;
+            
+            // Apply status filter
+            if (currentFilter !== 'all') {
+                filteredEnrollments = filteredEnrollments.filter(e => e.status === currentFilter);
+            }
+            
+            // Apply search filter
+            if (searchTerm) {
+                filteredEnrollments = filteredEnrollments.filter(e => {
+                    const name = `${e.student.firstName} ${e.student.lastName}`.toLowerCase();
+                    const email = e.student.email.toLowerCase();
+                    return name.includes(searchTerm) || email.includes(searchTerm);
+                });
+            }
+
+            if (filteredEnrollments.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            <h3>No students found</h3>
+                            <p>${currentFilter === 'all' ? 'Upload a roster or invite students to get started' : 'No students match the current filter'}</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filteredEnrollments.map(enrollment => {
+                const student = enrollment.student;
+                const stats = enrollment.stats || {};
+                const attendanceRate = stats.attendanceRate || 0;
+                const performance = stats.questionsAnswered > 0 
+                    ? Math.round((stats.correctAnswers / stats.questionsAnswered) * 100)
+                    : 0;
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="student-name">${student.firstName} ${student.lastName}</div>
+                            <div class="student-email">${student.email}</div>
+                        </td>
+                        <td>
+                            <span class="status-badge ${enrollment.status}">
+                                ${enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="student-stats">
+                                <span>${attendanceRate}% (${stats.sessionsAttended || 0} sessions)</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="student-stats">
+                                <span>${performance}% (${stats.questionsAnswered || 0} questions)</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="student-actions">
+                                ${enrollment.status === 'pending' ? `
+                                    <button class="action-btn" onclick="approveStudent('${enrollment._id}')">
+                                        Approve
+                                    </button>
+                                ` : ''}
+                                ${enrollment.status === 'invited' ? `
+                                    <button class="action-btn" onclick="resendInvite('${enrollment._id}')">
+                                        Resend
+                                    </button>
+                                ` : ''}
+                                <button class="action-btn" onclick="viewStudent('${student._id}')">
+                                    View
+                                </button>
+                                <button class="action-btn" onclick="removeStudent('${enrollment._id}')">
+                                    Remove
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterByStatus(status) {
+            currentFilter = status;
+            
+            // Update active tab
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.textContent.toLowerCase().includes(status) || 
+                    (status === 'all' && tab.textContent === 'All')) {
+                    tab.classList.add('active');
+                }
+            });
+            
+            renderRoster();
+        }
+
+        function filterStudents() {
+            renderRoster();
+        }
+
+        function showUploadModal() {
+            showModal('uploadModal');
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        async function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                showToast('Please upload a CSV file', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('roster', file);
+
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/classes/${classId}/upload-roster`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to process roster');
+                }
+
+                uploadData = data;
+                displayUploadResults(data);
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                showToast(error.message || 'Failed to upload roster', 'error');
+            }
+        }
+
+        function displayUploadResults(data) {
+            const resultsDiv = document.getElementById('uploadResults');
+            const confirmBtn = document.getElementById('confirmUpload');
+            
+            resultsDiv.innerHTML = `
+                <h3>Upload Results</h3>
+                <p><strong>Total rows:</strong> ${data.totalRows}</p>
+                <p><strong>Matched students:</strong> ${data.matchedStudents}</p>
+                <p><strong>New students to invite:</strong> ${data.newStudents}</p>
+                
+                ${data.duplicates > 0 ? `
+                    <p style="color: var(--warning-color);">
+                        <strong>Duplicates skipped:</strong> ${data.duplicates}
+                    </p>
+                ` : ''}
+                
+                ${data.errors && data.errors.length > 0 ? `
+                    <div style="margin-top: 16px;">
+                        <p style="color: var(--danger-color);"><strong>Errors:</strong></p>
+                        <ul style="margin-left: 20px; color: var(--danger-color);">
+                            ${data.errors.map(err => `<li>${err}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            `;
+            
+            resultsDiv.style.display = 'block';
+            if (data.matchedStudents > 0 || data.newStudents > 0) {
+                confirmBtn.style.display = 'inline-flex';
+            }
+        }
+
+        async function confirmRosterUpload() {
+            if (!uploadData) return;
+
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/classes/${classId}/confirm-roster`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        uploadId: uploadData.uploadId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to confirm roster');
+                }
+
+                showToast('Roster uploaded successfully!', 'success');
+                hideModal('uploadModal');
+                loadEnrollments();
+                
+                // Reset upload state
+                uploadData = null;
+                document.getElementById('fileInput').value = '';
+                document.getElementById('uploadResults').style.display = 'none';
+                document.getElementById('confirmUpload').style.display = 'none';
+            } catch (error) {
+                console.error('Error confirming roster:', error);
+                showToast(error.message || 'Failed to confirm roster', 'error');
+            }
+        }
+
+        function showInviteModal() {
+            showModal('inviteModal');
+        }
+
+        async function sendInvitations() {
+            const emailsText = document.getElementById('inviteEmails').value;
+            const customMessage = document.getElementById('inviteMessage').value;
+
+            if (!emailsText.trim()) {
+                showToast('Please enter at least one email address', 'error');
+                return;
+            }
+
+            // Parse emails
+            const emails = emailsText
+                .split(/[\n,]/)
+                .map(e => e.trim())
+                .filter(e => e.length > 0);
+
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/classes/${classId}/invite`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        emails,
+                        customMessage
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to send invitations');
+                }
+
+                showToast(`Successfully sent ${data.sent} invitations`, 'success');
+                hideModal('inviteModal');
+                loadEnrollments();
+                
+                // Clear form
+                document.getElementById('inviteEmails').value = '';
+                document.getElementById('inviteMessage').value = '';
+            } catch (error) {
+                console.error('Error sending invitations:', error);
+                showToast(error.message || 'Failed to send invitations', 'error');
+            }
+        }
+
+        async function approveStudent(enrollmentId) {
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/enrollment/${enrollmentId}/approve`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to approve student');
+
+                showToast('Student approved successfully', 'success');
+                loadEnrollments();
+            } catch (error) {
+                console.error('Error approving student:', error);
+                showToast('Failed to approve student', 'error');
+            }
+        }
+
+        async function removeStudent(enrollmentId) {
+            if (!confirm('Are you sure you want to remove this student from the class?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/enrollment/${enrollmentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to remove student');
+
+                showToast('Student removed successfully', 'success');
+                loadEnrollments();
+            } catch (error) {
+                console.error('Error removing student:', error);
+                showToast('Failed to remove student', 'error');
+            }
+        }
+
+        async function resendInvite(enrollmentId) {
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/enrollment/${enrollmentId}/resend-invite`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to resend invitation');
+
+                showToast('Invitation resent successfully', 'success');
+            } catch (error) {
+                console.error('Error resending invitation:', error);
+                showToast('Failed to resend invitation', 'error');
+            }
+        }
+
+        function viewStudent(studentId) {
+            window.location.href = `/student-profile.html?id=${studentId}&classId=${classId}`;
+        }
+
+        async function exportRoster() {
+            try {
+                const response = await fetch(`https://api.intellaclick.com/api/classes/${classId}/export-roster`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to export roster');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${classData.code}_roster_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                showToast('Roster exported successfully', 'success');
+            } catch (error) {
+                console.error('Error exporting roster:', error);
+                showToast('Failed to export roster', 'error');
+            }
+        }
+
+        function showModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.add('show');
+        }
+
+        function hideModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('show');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

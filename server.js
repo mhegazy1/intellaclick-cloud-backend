@@ -129,6 +129,7 @@ const sessionRoutes = require('./routes/sessions');
 const statsRoutes = require('./routes/stats');
 const studentsRoutes = require('./routes/students');
 const classesRoutes = require('./routes/classes');
+const enrollmentRoutes = require('./routes/enrollment');
 // Use MongoDB-backed sync routes
 const syncRoutes = require('./routes/sync-mongodb');
 
@@ -174,6 +175,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/students', studentsRoutes);
 app.use('/api/classes', classesRoutes);
+app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
@@ -183,6 +185,44 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 
 // DEBUG ENDPOINTS - TEMPORARY for troubleshooting student issues
+
+// Test email sending
+app.post('/api/debug/test-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+    
+    const emailService = require('./services/emailService');
+    const emailInstance = new emailService();
+    
+    await emailInstance.sendEmail(
+      email,
+      'Test Email from IntellaQuiz',
+      `<h1>Email Test Successful!</h1>
+      <p>If you're seeing this, your email configuration is working correctly.</p>
+      <p>Students will be able to:</p>
+      <ul>
+        <li>Reset their passwords</li>
+        <li>Verify their email addresses</li>
+        <li>Receive session notifications</li>
+      </ul>
+      <p>Sent at: ${new Date().toLocaleString()}</p>`
+    );
+    
+    res.json({ 
+      success: true, 
+      message: `Test email sent to ${email}` 
+    });
+  } catch (error) {
+    console.error('Email test error:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: 'Check your SendGrid configuration in environment variables'
+    });
+  }
+});
 
 // Quick check for Student collection
 app.get('/api/debug/student-collection', async (req, res) => {
