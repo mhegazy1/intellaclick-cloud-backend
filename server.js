@@ -183,6 +183,37 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 
 // DEBUG ENDPOINTS - TEMPORARY for troubleshooting student issues
+
+// Quick check for Student collection
+app.get('/api/debug/student-collection', async (req, res) => {
+  try {
+    const Student = require('./models/Student');
+    const students = await Student.find({})
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .limit(50); // Last 50 students
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStudents = students.filter(s => new Date(s.createdAt) >= today);
+    
+    res.json({
+      total: await Student.countDocuments(),
+      todayCount: todayStudents.length,
+      showing: students.length,
+      students: students.map(s => ({
+        email: s.email,
+        name: s.profile?.firstName ? `${s.profile.firstName} ${s.profile.lastName}` : 'No name',
+        created: s.createdAt,
+        verified: s.isVerified,
+        hasPassword: !!s.password
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/debug/student/:email', async (req, res) => {
   try {
     const User = require('./models/User');
