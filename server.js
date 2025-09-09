@@ -214,6 +214,43 @@ app.get('/api/debug/student-collection', async (req, res) => {
   }
 });
 
+// Check specific student with password details
+app.get('/api/debug/check-student/:email', async (req, res) => {
+  try {
+    const Student = require('./models/Student');
+    const { email } = req.params;
+    
+    // Get student WITH password field (not normally selected)
+    const student = await Student.findOne({ 
+      email: new RegExp(email, 'i') 
+    }).select('+password');
+    
+    if (!student) {
+      return res.json({ 
+        found: false,
+        message: 'No student found with this email in Student collection' 
+      });
+    }
+    
+    res.json({
+      found: true,
+      collection: 'students',
+      email: student.email,
+      name: `${student.profile?.firstName} ${student.profile?.lastName}`,
+      hasPassword: !!student.password,
+      passwordLength: student.password ? student.password.length : 0,
+      passwordStartsWith: student.password ? student.password.substring(0, 10) + '...' : null,
+      isBcryptHash: student.password ? (student.password.startsWith('$2a$') || student.password.startsWith('$2b$')) : false,
+      created: student.createdAt,
+      emailVerified: student.verification?.emailVerified || false,
+      lastLogin: student.metadata?.lastLoginAt || null,
+      loginCount: student.metadata?.loginCount || 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/debug/student/:email', async (req, res) => {
   try {
     const User = require('./models/User');
