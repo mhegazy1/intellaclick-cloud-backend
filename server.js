@@ -176,7 +176,7 @@ app.use('/api/clicker/sessions', sessionRoutes); // Alias for clicker compatibil
 app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 
-// DEBUG ENDPOINT - TEMPORARY for troubleshooting student issues
+// DEBUG ENDPOINTS - TEMPORARY for troubleshooting student issues
 app.get('/api/debug/student/:email', async (req, res) => {
   try {
     const User = require('./models/User');
@@ -202,6 +202,58 @@ app.get('/api/debug/student/:email', async (req, res) => {
       created: student.createdAt,
       role: student.role,
       hasPassword: !!student.password
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List all students with issue detection
+app.get('/api/debug/students', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const students = await User.find({ role: 'student' })
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    const studentsWithIssues = students.map(student => {
+      const hasNameIssue = (!student.firstName || !student.lastName) && 
+                           (student.profile?.firstName || student.profile?.lastName);
+      const missingName = !student.firstName && !student.lastName && 
+                          !student.profile?.firstName && !student.profile?.lastName;
+      
+      return {
+        _id: student._id,
+        email: student.email,
+        displayName: student.firstName && student.lastName 
+          ? `${student.firstName} ${student.lastName}`
+          : student.profile?.firstName && student.profile?.lastName
+          ? `${student.profile.firstName} ${student.profile.lastName}`
+          : '!!!',
+        firstName: student.firstName || null,
+        lastName: student.lastName || null,
+        nestedFirstName: student.profile?.firstName || null,
+        nestedLastName: student.profile?.lastName || null,
+        created: student.createdAt,
+        hasNameIssue,
+        missingName,
+        hasPassword: !!student.password,
+        lastLogin: student.lastLogin || null
+      };
+    });
+    
+    const stats = {
+      total: students.length,
+      withNameIssues: studentsWithIssues.filter(s => s.hasNameIssue).length,
+      missingNames: studentsWithIssues.filter(s => s.missingName).length,
+      recentSignups: studentsWithIssues.filter(s => 
+        new Date(s.created) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      ).length
+    };
+    
+    res.json({
+      stats,
+      students: studentsWithIssues
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
