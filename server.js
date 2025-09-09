@@ -266,6 +266,75 @@ app.get('/api/debug/students', async (req, res) => {
   }
 });
 
+// List ALL users to find missing students
+app.get('/api/debug/all-users', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const Student = require('./models/Student');
+    
+    // Get counts by role
+    const roleCounts = await User.aggregate([
+      { $group: { _id: '$role', count: { $sum: 1 } } }
+    ]);
+    
+    // Get today's users
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayUsers = await User.find({
+      createdAt: { $gte: today }
+    }).select('-password').sort({ createdAt: -1 });
+    
+    // Get all users from last 7 days
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentUsers = await User.find({
+      createdAt: { $gte: weekAgo }
+    }).select('-password').sort({ createdAt: -1 });
+    
+    // Check Student collection too
+    const studentCollectionCount = await Student.countDocuments();
+    const recentStudents = await Student.find({
+      createdAt: { $gte: weekAgo }
+    }).select('-password').sort({ createdAt: -1 });
+    
+    res.json({
+      summary: {
+        totalUsers: await User.countDocuments(),
+        roleBreakdown: roleCounts,
+        todayCount: todayUsers.length,
+        last7DaysCount: recentUsers.length,
+        studentCollectionCount,
+        collections: {
+          users: 'User model entries',
+          students: 'Student model entries (separate collection)'
+        }
+      },
+      todayUsers: todayUsers.map(u => ({
+        email: u.email,
+        role: u.role,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'No name',
+        created: u.createdAt,
+        hasPassword: !!u.password
+      })),
+      recentUsers: recentUsers.map(u => ({
+        email: u.email,
+        role: u.role,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'No name',
+        created: u.createdAt,
+        hasPassword: !!u.password
+      })),
+      recentStudentCollection: recentStudents.map(s => ({
+        email: s.email,
+        name: s.profile?.firstName ? `${s.profile.firstName} ${s.profile.lastName}` : 'No name',
+        created: s.createdAt,
+        verified: s.isVerified
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
