@@ -176,6 +176,38 @@ app.use('/api/clicker/sessions', sessionRoutes); // Alias for clicker compatibil
 app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 
+// DEBUG ENDPOINT - TEMPORARY for troubleshooting student issues
+app.get('/api/debug/student/:email', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const student = await User.findOne({ 
+      email: new RegExp(req.params.email, 'i'),
+      role: 'student'
+    }).select('-password');
+    
+    if (!student) {
+      return res.json({ error: 'Student not found' });
+    }
+    
+    res.json({
+      email: student.email,
+      hasFirstName: !!student.firstName,
+      hasLastName: !!student.lastName,
+      hasNestedFirstName: !!student.profile?.firstName,
+      hasNestedLastName: !!student.profile?.lastName,
+      firstName: student.firstName || '(missing)',
+      lastName: student.lastName || '(missing)',
+      nestedFirstName: student.profile?.firstName || '(missing)',
+      nestedLastName: student.profile?.lastName || '(missing)',
+      created: student.createdAt,
+      role: student.role,
+      hasPassword: !!student.password
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
