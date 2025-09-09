@@ -189,7 +189,7 @@ app.get('/api/debug/student-collection', async (req, res) => {
   try {
     const Student = require('./models/Student');
     const students = await Student.find({})
-      .select('-password')
+      .select('+password') // Include password field to check if it exists
       .sort({ createdAt: -1 })
       .limit(50); // Last 50 students
     
@@ -206,7 +206,8 @@ app.get('/api/debug/student-collection', async (req, res) => {
         name: s.profile?.firstName ? `${s.profile.firstName} ${s.profile.lastName}` : 'No name',
         created: s.createdAt,
         verified: s.isVerified,
-        hasPassword: !!s.password
+        hasPassword: !!s.password,
+        passwordHash: s.password ? 'HIDDEN' : null // Don't expose actual password hash
       }))
     });
   } catch (error) {
