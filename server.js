@@ -134,6 +134,10 @@ const categoryRoutes = require('./routes/categories');
 const quizRoutes = require('./routes/quizzes');
 const sessionRoutes = require('./routes/sessions');
 const sessionEnhancedRoutes = require('./routes/sessions-enhanced');
+const sessionGamifiedRoutes = require('./routes/sessions-gamified');
+const gamificationRoutes = require('./routes/gamification');
+const taManagementRoutes = require('./routes/ta-management');
+const clickerSyncRoutes = require('./routes/clicker-sync');
 const statsRoutes = require('./routes/stats');
 const studentsRoutes = require('./routes/students');
 const classesRoutes = require('./routes/classes');
@@ -190,6 +194,10 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/clicker/sessions', sessionRoutes); // Alias for clicker compatibility
 app.use('/api/sessions-enhanced', sessionEnhancedRoutes); // Enhanced sessions with class enrollment
+app.use('/api/sessions-gamified', sessionGamifiedRoutes); // Gamified session endpoints
+app.use('/api/gamification', gamificationRoutes); // Gamification system endpoints
+app.use('/api/ta-management', taManagementRoutes); // Teaching assistant management
+app.use('/api/clicker-sync', clickerSyncRoutes); // Desktop app clicker results sync
 app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 

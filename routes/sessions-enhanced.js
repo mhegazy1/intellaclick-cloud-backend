@@ -10,22 +10,18 @@ router.post('/create-for-class', auth, async (req, res) => {
   try {
     const { title, description, classId, requireLogin = true, platform = 'powerpoint' } = req.body;
     
-    // Verify the instructor owns this class
-    const classDoc = await Class.findOne({ 
-      _id: classId,
-      $or: [
-        { instructorId: req.user._id },
-        { coInstructors: req.user._id },
-        { teachingAssistants: req.user._id }
-      ]
-    });
+    // Class access already verified by middleware
+    const classDoc = req.class;
     
     if (!classDoc) {
       return res.status(404).json({ 
         success: false, 
-        error: 'Class not found or you do not have permission' 
+        error: 'Class not found' 
       });
     }
+    
+    // Log who created the session
+    const creatorRole = req.userRole; // 'instructor' or 'teaching_assistant'
     
     // Generate unique session code
     const sessionCode = generateSessionCode();
@@ -186,6 +182,71 @@ router.post('/join-class-session', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to join session' 
+    });
+  }
+});
+
+// Create a regular (non-PowerPoint) session linked to a class
+router.post('/create-quiz-session', auth, async (req, res) => {
+  try {
+    const { title, description, classId, requireLogin = true, questionIds = [] } = req.body;
+    
+    // Class access already verified by middleware
+    const classDoc = req.class;
+    
+    if (!classDoc) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Class not found' 
+      });
+    }
+    
+    // Log who created the session
+    const creatorRole = req.userRole; // 'instructor' or 'teaching_assistant'
+    
+    // Generate unique session code
+    const sessionCode = generateSessionCode();
+    
+    // Create session with class association
+    const session = new Session({
+      sessionCode,
+      title: title || `${classDoc.name} - Quiz Session`,
+      description: description || `Live quiz session for ${classDoc.name}`,
+      instructorId: req.user._id,
+      classId: classId,
+      requireLogin: requireLogin,
+      metadata: {
+        platform: 'standalone',
+        className: classDoc.name,
+        classCode: classDoc.code
+      },
+      // Pre-load questions if provided
+      questionsSent: questionIds.map((qId, index) => ({
+        questionId: qId,
+        questionIndex: index,
+        sentAt: null // Will be set when question is activated
+      }))
+    });
+    
+    await session.save();
+    
+    res.json({
+      success: true,
+      session: {
+        id: session._id,
+        sessionCode: session.sessionCode,
+        title: session.title,
+        classId: session.classId,
+        className: classDoc.name,
+        joinUrl: `https://join.intellaclick.com/session/${session.sessionCode}`,
+        totalQuestions: questionIds.length
+      }
+    });
+  } catch (error) {
+    console.error('Error creating quiz session:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to create session' 
     });
   }
 });
