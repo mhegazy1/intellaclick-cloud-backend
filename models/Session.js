@@ -22,6 +22,13 @@ const sessionSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  classId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+    required: false,
+    index: true,
+    description: 'Optional link to a class for enrollment-based sessions'
+  },
   status: {
     type: String,
     enum: ['waiting', 'active', 'ended'],
@@ -58,7 +65,8 @@ const sessionSchema = new mongoose.Schema({
     lastJoinedAt: {
       type: Date,
       default: Date.now
-    }
+    },
+    isEnrolled: { type: Boolean, default: false }
   }],
   responses: [{
     questionId: String,
@@ -84,6 +92,11 @@ const sessionSchema = new mongoose.Schema({
   },
   startedAt: Date,
   endedAt: Date,
+  metadata: {
+    platform: { type: String, enum: ['powerpoint', 'standalone', 'web'], default: 'web' },
+    className: String,
+    classCode: String
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -45,6 +45,13 @@ const corsOptions = {
       'http://127.0.0.1:5500' // Live Server extension
     ];
     
+    // Add production domains
+    const productionOrigins = [
+      'https://instructor.intellaclick.com',
+      'https://join.intellaquiz.com',
+      'https://student.intellaquiz.com'
+    ];
+    
     // In production, add common Netlify patterns
     if (process.env.NODE_ENV === 'production') {
       // Add any Netlify preview/branch deploy patterns
@@ -126,6 +133,7 @@ const questionRoutes = require('./routes/questions');
 const categoryRoutes = require('./routes/categories');
 const quizRoutes = require('./routes/quizzes');
 const sessionRoutes = require('./routes/sessions');
+const sessionEnhancedRoutes = require('./routes/sessions-enhanced');
 const statsRoutes = require('./routes/stats');
 const studentsRoutes = require('./routes/students');
 const classesRoutes = require('./routes/classes');
@@ -181,6 +189,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/clicker/sessions', sessionRoutes); // Alias for clicker compatibility
+app.use('/api/sessions-enhanced', sessionEnhancedRoutes); // Enhanced sessions with class enrollment
 app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 
