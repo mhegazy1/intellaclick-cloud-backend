@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body, param, query, validationResult } = require('express-validator');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/authWithRole'); // Enhanced auth that fetches role from DB
 const instructorAuth = require('../middleware/instructorAuth');
 const Class = require('../models/Class');
 const ClassEnrollment = require('../models/ClassEnrollment');

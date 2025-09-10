@@ -1,9 +1,27 @@
-module.exports = function(req, res, next) {
+module.exports = async function(req, res, next) {
   // This middleware should be used after the auth middleware
   // which sets req.user
   
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  // If role is missing from req.user, fetch it from database
+  if (!req.user.role && (req.user._id || req.user.userId)) {
+    try {
+      const User = require('../models/User');
+      const userId = req.user._id || req.user.userId;
+      const user = await User.findById(userId).select('role email firstName lastName');
+      
+      if (user) {
+        req.user.role = user.role;
+        req.user.email = user.email;
+        req.user.firstName = user.firstName;
+        req.user.lastName = user.lastName;
+      }
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+    }
   }
   
   // Check if user has instructor role
