@@ -293,8 +293,9 @@ classEnrollmentSchema.statics.findByInvitationToken = function(token) {
 
 // Get enrollment summary for a class
 classEnrollmentSchema.statics.getClassSummary = async function(classId) {
-  const summary = await this.aggregate([
-    { $match: { classId: mongoose.Types.ObjectId(classId) } },
+  try {
+    const summary = await this.aggregate([
+      { $match: { classId: new mongoose.Types.ObjectId(classId) } },
     {
       $group: {
         _id: '$status',
@@ -316,7 +317,26 @@ classEnrollmentSchema.statics.getClassSummary = async function(classId) {
     result[item._id] = item.count;
   });
   
-  return result;
+  // Return in the format expected by the route
+  return {
+    totalEnrolled: result.enrolled,
+    activeStudents: result.enrolled,
+    ...result
+  };
+  } catch (error) {
+    console.error('Error in getClassSummary:', error);
+    // Return default values if there's an error
+    return {
+      totalEnrolled: 0,
+      activeStudents: 0,
+      enrolled: 0,
+      dropped: 0,
+      withdrawn: 0,
+      pending: 0,
+      invited: 0,
+      blocked: 0
+    };
+  }
 };
 
 module.exports = mongoose.model('ClassEnrollment', classEnrollmentSchema);

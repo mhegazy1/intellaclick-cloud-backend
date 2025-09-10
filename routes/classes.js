@@ -32,8 +32,18 @@ router.get('/', auth, instructorAuth, async (req, res) => {
   try {
     const { status = 'active', term, includeArchived } = req.query;
     
+    // Debug logging
+    console.log('GET /api/classes - User object:', JSON.stringify({
+      _id: req.user._id,
+      id: req.user.id,
+      userId: req.user.userId,
+      role: req.user.role,
+      email: req.user.email
+    }));
+    
     // Handle different user ID formats
-    const userId = req.user._id || (req.user._id || req.user.id || req.user.userId) || req.user.userId;
+    const userId = req.user._id || req.user.id || req.user.userId;
+    console.log('Using userId:', userId);
     
     const query = {
       $or: [
@@ -51,20 +61,33 @@ router.get('/', auth, instructorAuth, async (req, res) => {
       query.term = term;
     }
     
+    console.log('Query:', JSON.stringify(query));
+    
     const classes = await Class.find(query)
       .sort({ term: -1, code: 1, section: 1 })
       .populate('instructorId', 'firstName lastName email')
       .populate('coInstructors', 'firstName lastName email')
       .populate('teachingAssistants', 'firstName lastName email');
     
+    console.log('Found classes:', classes.length);
+    
     // Add enrollment counts
     const classesWithStats = await Promise.all(
       classes.map(async (classDoc) => {
-        const enrollmentSummary = await ClassEnrollment.getClassSummary(classDoc._id);
-        return {
-          ...classDoc.toObject(),
-          enrollmentSummary
-        };
+        try {
+          const enrollmentSummary = await ClassEnrollment.getClassSummary(classDoc._id);
+          return {
+            ...classDoc.toObject(),
+            enrollmentSummary
+          };
+        } catch (summaryError) {
+          console.error('Error getting enrollment summary for class:', classDoc._id, summaryError);
+          // Return class without summary if it fails
+          return {
+            ...classDoc.toObject(),
+            enrollmentSummary: { totalEnrolled: 0, activeStudents: 0 }
+          };
+        }
       })
     );
     
@@ -78,7 +101,7 @@ router.get('/', auth, instructorAuth, async (req, res) => {
 // GET /api/classes/stats - Get instructor statistics
 router.get('/stats', auth, instructorAuth, async (req, res) => {
   try {
-    const instructorId = req.user._id || (req.user._id || req.user.id || req.user.userId) || req.user.userId;
+    const instructorId = req.user._id || req.user.id || req.user.userId;
     
     // Get all instructor's classes
     const classes = await Class.find({
