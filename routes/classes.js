@@ -32,11 +32,14 @@ router.get('/', auth, instructorAuth, async (req, res) => {
   try {
     const { status = 'active', term, includeArchived } = req.query;
     
+    // Handle different user ID formats
+    const userId = req.user._id || (req.user._id || req.user.id || req.user.userId) || req.user.userId;
+    
     const query = {
       $or: [
-        { instructorId: req.user.id },
-        { coInstructors: req.user.id },
-        { teachingAssistants: req.user.id }
+        { instructorId: userId },
+        { coInstructors: userId },
+        { teachingAssistants: userId }
       ]
     };
     
@@ -75,7 +78,7 @@ router.get('/', auth, instructorAuth, async (req, res) => {
 // GET /api/classes/stats - Get instructor statistics
 router.get('/stats', auth, instructorAuth, async (req, res) => {
   try {
-    const instructorId = req.user.id;
+    const instructorId = req.user._id || (req.user._id || req.user.id || req.user.userId) || req.user.userId;
     
     // Get all instructor's classes
     const classes = await Class.find({
@@ -138,9 +141,9 @@ router.get('/terms', auth, instructorAuth, async (req, res) => {
   try {
     const terms = await Class.distinct('term', {
       $or: [
-        { instructorId: req.user.id },
-        { coInstructors: req.user.id },
-        { teachingAssistants: req.user.id }
+        { instructorId: (req.user._id || req.user.id || req.user.userId) },
+        { coInstructors: (req.user._id || req.user.id || req.user.userId) },
+        { teachingAssistants: (req.user._id || req.user.id || req.user.userId) }
       ]
     });
     
@@ -161,7 +164,7 @@ router.post('/', auth, instructorAuth, classValidation, async (req, res) => {
     
     const classData = {
       ...req.body,
-      instructorId: req.user.id
+      instructorId: (req.user._id || req.user.id || req.user.userId)
     };
     
     // Create class
@@ -200,15 +203,15 @@ router.get('/:id', auth, param('id').isMongoId(), async (req, res) => {
     
     // Check access
     const hasAccess = 
-      classDoc.instructorId._id.toString() === req.user.id ||
-      classDoc.coInstructors.some(co => co._id.toString() === req.user.id) ||
-      classDoc.teachingAssistants.some(ta => ta._id.toString() === req.user.id);
+      classDoc.instructorId._id.toString() === (req.user._id || req.user.id || req.user.userId) ||
+      classDoc.coInstructors.some(co => co._id.toString() === (req.user._id || req.user.id || req.user.userId)) ||
+      classDoc.teachingAssistants.some(ta => ta._id.toString() === (req.user._id || req.user.id || req.user.userId));
     
     if (!hasAccess && req.user.role !== 'admin') {
       // Check if student is enrolled
       const enrollment = await ClassEnrollment.findOne({
         classId: classDoc._id,
-        studentId: req.user.id,
+        studentId: (req.user._id || req.user.id || req.user.userId),
         status: 'enrolled'
       });
       
@@ -245,7 +248,7 @@ router.get('/:id/details', auth, param('id').isMongoId(), async (req, res) => {
     // Get student's enrollment
     const enrollment = await ClassEnrollment.findOne({
       classId: classDoc._id,
-      studentId: req.user.id
+      studentId: (req.user._id || req.user.id || req.user.userId)
     });
     
     if (!enrollment || (enrollment.status !== 'enrolled' && enrollment.status !== 'pending')) {
@@ -275,7 +278,7 @@ router.get('/:id/sessions', auth, param('id').isMongoId(), async (req, res) => {
     // Check enrollment
     const enrollment = await ClassEnrollment.findOne({
       classId: req.params.id,
-      studentId: req.user.id,
+      studentId: (req.user._id || req.user.id || req.user.userId),
       status: { $in: ['enrolled', 'pending'] }
     });
     
@@ -312,7 +315,7 @@ router.put('/:id', auth, instructorAuth, [
     }
     
     // Check ownership
-    if (classDoc.instructorId.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId) && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -343,7 +346,7 @@ router.post('/:id/generate-join-code', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -392,9 +395,9 @@ router.get('/:id/students', auth, [
     
     // Check access
     const isInstructor = 
-      classDoc.instructorId.toString() === req.user.id ||
-      classDoc.coInstructors.includes(req.user.id) ||
-      classDoc.teachingAssistants.includes(req.user.id);
+      classDoc.instructorId.toString() === (req.user._id || req.user.id || req.user.userId) ||
+      classDoc.coInstructors.includes((req.user._id || req.user.id || req.user.userId)) ||
+      classDoc.teachingAssistants.includes((req.user._id || req.user.id || req.user.userId));
     
     if (!isInstructor && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied' });
@@ -444,7 +447,7 @@ router.get('/:id/export-roster', auth, instructorAuth, param('id').isMongoId(), 
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -510,7 +513,7 @@ router.post('/:id/students/add', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -533,7 +536,7 @@ router.post('/:id/students/add', auth, instructorAuth, [
         existingEnrollment.status = 'enrolled';
         existingEnrollment.enrolledAt = new Date();
         existingEnrollment.enrollmentMethod = 'instructor_added';
-        existingEnrollment.enrolledBy = req.user.id;
+        existingEnrollment.enrolledBy = (req.user._id || req.user.id || req.user.userId);
         await existingEnrollment.save();
         
         await classDoc.updateEnrollmentStats();
@@ -550,7 +553,7 @@ router.post('/:id/students/add', auth, instructorAuth, [
         classId: classDoc._id,
         studentId: student._id,
         enrollmentMethod: 'instructor_added',
-        enrolledBy: req.user.id,
+        enrolledBy: (req.user._id || req.user.id || req.user.userId),
         status: 'enrolled'
       });
       
@@ -566,7 +569,7 @@ router.post('/:id/students/add', auth, instructorAuth, [
       // Student doesn't exist - create invitation
       const invitation = new ClassInvitation({
         classId: classDoc._id,
-        createdBy: req.user.id,
+        createdBy: (req.user._id || req.user.id || req.user.userId),
         email,
         source: 'manual'
       });
@@ -608,11 +611,11 @@ router.delete('/:id/students/:enrollmentId', auth, instructorAuth, [
     }
     
     const classDoc = await Class.findById(req.params.id);
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    await enrollment.withdraw(req.user.id, req.body.reason || 'Instructor removed');
+    await enrollment.withdraw((req.user._id || req.user.id || req.user.userId), req.body.reason || 'Instructor removed');
     await classDoc.updateEnrollmentStats();
     
     res.json({ 
@@ -634,7 +637,7 @@ router.post('/:id/archive', auth, instructorAuth, param('id').isMongoId(), async
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -673,7 +676,7 @@ router.post('/:id/invite', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId._id.toString() !== req.user.id) {
+    if (classDoc.instructorId._id.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -721,7 +724,7 @@ router.post('/:id/invite', auth, instructorAuth, [
         // Create new invitation
         const invitation = new ClassInvitation({
           classId: classDoc._id,
-          createdBy: req.user.id,
+          createdBy: (req.user._id || req.user.id || req.user.userId),
           email,
           source: 'instructor',
           customMessage
@@ -792,7 +795,7 @@ router.get('/:id/invitations', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -832,7 +835,7 @@ router.post('/:id/invitations/:invitationId/resend', auth, instructorAuth, [
     const classDoc = await Class.findById(req.params.id)
       .populate('instructorId', 'firstName lastName email');
     
-    if (classDoc.instructorId._id.toString() !== req.user.id) {
+    if (classDoc.instructorId._id.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -905,7 +908,7 @@ router.post('/:id/upload-roster', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== req.user.id) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -1000,7 +1003,7 @@ router.post('/:id/upload-roster', auth, instructorAuth, [
     global.rosterUploads = global.rosterUploads || {};
     global.rosterUploads[results.uploadId] = {
       classId: classDoc._id,
-      instructorId: req.user.id,
+      instructorId: (req.user._id || req.user.id || req.user.userId),
       data: processedData,
       timestamp: new Date()
     };
@@ -1034,7 +1037,7 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
       return res.status(400).json({ error: 'Upload data does not match class' });
     }
     
-    if (uploadData.instructorId !== req.user.id) {
+    if (uploadData.instructorId !== (req.user._id || req.user.id || req.user.userId)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -1053,7 +1056,7 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
             classId: classDoc._id,
             studentId: data.studentObjectId,
             enrollmentMethod: 'roster_upload',
-            enrolledBy: req.user.id,
+            enrolledBy: (req.user._id || req.user.id || req.user.userId),
             status: 'enrolled',
             rosterData: {
               originalEmail: data.email,
@@ -1066,7 +1069,7 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
           // Create invitation for new student
           const invitation = new ClassInvitation({
             classId: classDoc._id,
-            createdBy: req.user.id,
+            createdBy: (req.user._id || req.user.id || req.user.userId),
             email: data.email,
             source: 'roster_upload',
             rosterInfo: {
@@ -1084,7 +1087,7 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
           await ClassEnrollment.create({
             classId: classDoc._id,
             enrollmentMethod: 'roster_upload',
-            enrolledBy: req.user.id,
+            enrolledBy: (req.user._id || req.user.id || req.user.userId),
             status: 'invited',
             rosterData: {
               originalEmail: data.email,
