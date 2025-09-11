@@ -37,7 +37,10 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role = 'instructor' } = req.body;
+    const { email, password, firstName, lastName, role = 'instructor', accountType } = req.body;
+    
+    // Support both 'role' and 'accountType' for backward compatibility
+    const userRole = accountType || role;
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -53,7 +56,7 @@ router.post('/register', [
       password,
       firstName,
       lastName,
-      role
+      role: userRole
     });
 
     try {

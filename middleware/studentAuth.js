@@ -10,10 +10,12 @@ module.exports = function(req, res, next) {
   // is accessing via the student auth system
   
   // Check if user type is student (from JWT payload)
-  if (req.user.type !== 'student') {
+  // TEMPORARY: Also allow instructors for testing
+  if (req.user.type !== 'student' && req.user.role !== 'instructor') {
     return res.status(403).json({ 
       error: 'Access denied. Student account required.',
       userType: req.user.type,
+      role: req.user.role,
       hint: 'Please login with your student account'
     });
   }

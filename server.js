@@ -142,6 +142,7 @@ const statsRoutes = require('./routes/stats');
 const studentsRoutes = require('./routes/students');
 const classesRoutes = require('./routes/classes');
 const enrollmentRoutes = require('./routes/enrollment');
+const unifiedEnrollmentRoutes = require('./routes/unified-enrollment');
 // Use MongoDB-backed sync routes
 const syncRoutes = require('./routes/sync-mongodb');
 
@@ -188,6 +189,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/students', studentsRoutes);
 app.use('/api/classes', classesRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
+app.use('/api/unified-enrollment', unifiedEnrollmentRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
