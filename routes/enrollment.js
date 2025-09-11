@@ -222,12 +222,92 @@ router.get('/my-classes', auth, studentAuth, async (req, res) => {
   }
 });
 
-// POST /api/enrollment/drop-unified/:enrollmentId - Drop from class (unified auth)
-router.post('/drop-unified/:enrollmentId', unifiedAuth, [
-  param('enrollmentId').isMongoId(),
-  body('reason').optional().trim()
-], async (req, res) => {
+// GET /api/enrollment/test - Test endpoint to verify router is mounted
+router.get('/test', (req, res) => {
+  res.json({ 
+    message: 'Enrollment router is working!',
+    endpoints: [
+      'POST /api/enrollment/join',
+      'GET /api/enrollment/my-classes',
+      'POST /api/enrollment/drop-unified/:enrollmentId',
+      'POST /api/enrollment/drop/:enrollmentId'
+    ]
+  });
+});
+
+// GET /api/enrollment/test/:enrollmentId - Test enrollment ID validation
+router.get('/test/:enrollmentId', (req, res) => {
+  const { enrollmentId } = req.params;
+  const mongoose = require('mongoose');
+  
+  res.json({
+    enrollmentId,
+    length: enrollmentId.length,
+    isValidObjectId: mongoose.Types.ObjectId.isValid(enrollmentId),
+    regex: /^[0-9a-fA-F]{24}$/.test(enrollmentId)
+  });
+});
+
+// POST /api/enrollment/test-drop/:enrollmentId - Test drop endpoint without validation
+router.post('/test-drop/:enrollmentId', (req, res) => {
+  console.log('Test drop endpoint hit:', {
+    enrollmentId: req.params.enrollmentId,
+    headers: req.headers,
+    body: req.body,
+    method: req.method,
+    url: req.url
+  });
+  
+  res.json({
+    message: 'Test drop endpoint reached successfully',
+    enrollmentId: req.params.enrollmentId,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// GET /api/enrollment/debug/:enrollmentId - Debug enrollment lookup
+router.get('/debug/:enrollmentId', async (req, res) => {
   try {
+    const enrollment = await ClassEnrollment.findById(req.params.enrollmentId)
+      .populate('classId')
+      .populate('studentId');
+    
+    if (!enrollment) {
+      return res.json({
+        found: false,
+        enrollmentId: req.params.enrollmentId
+      });
+    }
+    
+    res.json({
+      found: true,
+      enrollment: {
+        _id: enrollment._id,
+        studentId: enrollment.studentId?._id,
+        studentEmail: enrollment.studentId?.email,
+        classId: enrollment.classId?._id,
+        className: enrollment.classId?.name,
+        status: enrollment.status,
+        enrolledAt: enrollment.enrolledAt
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/enrollment/drop-unified/:enrollmentId - Drop from class (unified auth)
+router.post('/drop-unified/:enrollmentId', unifiedAuth, async (req, res) => {
+  try {
+    console.log('Drop class request:', {
+      enrollmentId: req.params.enrollmentId,
+      enrollmentIdLength: req.params.enrollmentId?.length,
+      enrollmentIdType: typeof req.params.enrollmentId,
+      user: req.user.email,
+      isStudent: req.user.isStudent,
+      headers: req.headers
+    });
+    
     const userId = req.user._id || req.user.id || req.user.userId;
     let studentId = userId;
     
@@ -244,7 +324,22 @@ router.post('/drop-unified/:enrollmentId', unifiedAuth, [
       studentId: studentId
     }).populate('classId');
     
+    console.log('Enrollment lookup result:', {
+      enrollmentId: req.params.enrollmentId,
+      studentId: studentId,
+      found: !!enrollment,
+      enrollment: enrollment ? { id: enrollment._id, status: enrollment.status } : null
+    });
+    
     if (!enrollment) {
+      // Try to find any enrollment with this ID to debug
+      const anyEnrollment = await ClassEnrollment.findById(req.params.enrollmentId);
+      console.log('Debug - Any enrollment with this ID:', {
+        found: !!anyEnrollment,
+        enrollmentStudentId: anyEnrollment?.studentId,
+        requestStudentId: studentId,
+        match: anyEnrollment?.studentId?.toString() === studentId.toString()
+      });
       return res.status(404).json({ error: 'Enrollment not found' });
     }
     
@@ -258,7 +353,9 @@ router.post('/drop-unified/:enrollmentId', unifiedAuth, [
       return res.status(400).json({ error: 'Drop deadline has passed' });
     }
     
-    await enrollment.drop(req.body.reason || 'student_initiated');
+    const reason = req.body?.reason || 'student_initiated';
+    console.log('Dropping enrollment with reason:', reason);
+    await enrollment.drop(reason);
     await classDoc.updateEnrollmentStats();
     
     res.json({
@@ -272,11 +369,9 @@ router.post('/drop-unified/:enrollmentId', unifiedAuth, [
 });
 
 // POST /api/enrollment/drop/:enrollmentId - Drop from class
-router.post('/drop/:enrollmentId', auth, studentAuth, [
-  param('enrollmentId').isMongoId(),
-  body('reason').optional().trim()
-], async (req, res) => {
+router.post('/drop/:enrollmentId', auth, studentAuth, async (req, res) => {
   try {
+    
     const enrollment = await ClassEnrollment.findOne({
       _id: req.params.enrollmentId,
       studentId: req.user.id
@@ -296,7 +391,9 @@ router.post('/drop/:enrollmentId', auth, studentAuth, [
       return res.status(400).json({ error: 'Drop deadline has passed' });
     }
     
-    await enrollment.drop(req.body.reason || 'student_initiated');
+    const reason = req.body?.reason || 'student_initiated';
+    console.log('Dropping enrollment with reason:', reason);
+    await enrollment.drop(reason);
     await classDoc.updateEnrollmentStats();
     
     res.json({
