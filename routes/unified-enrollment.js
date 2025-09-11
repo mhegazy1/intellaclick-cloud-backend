@@ -1,15 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const auth = require('../middleware/auth');
-const authWithRole = require('../middleware/authWithRole');
+const unifiedAuth = require('../middleware/unifiedAuth');
 const Class = require('../models/Class');
 const ClassEnrollment = require('../models/ClassEnrollment');
 const Student = require('../models/Student');
 const User = require('../models/User');
 
 // POST /api/unified-enrollment/join - Join class with join code (works for both students and instructors testing)
-router.post('/join', authWithRole, [
+router.post('/join', unifiedAuth, [
   body('joinCode').notEmpty().trim().toUpperCase()
 ], async (req, res) => {
   try {
@@ -60,7 +59,7 @@ router.post('/join', authWithRole, [
     let studentData;
     
     // If it's an instructor account, we need to create a corresponding student record
-    if (req.user.role) { // This is a User (instructor) account
+    if (!req.user.isStudent) { // This is a User (instructor) account
       // Check if this instructor already has a student account
       const existingStudent = await Student.findOne({ email: req.user.email });
       
