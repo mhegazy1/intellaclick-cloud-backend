@@ -130,8 +130,11 @@ router.post('/join', auth, studentAuth, [
 // GET /api/enrollment/my-classes - Get student's enrolled classes
 router.get('/my-classes', auth, studentAuth, async (req, res) => {
   try {
+    const studentId = req.user._id || req.user.id || req.user.userId;
+    console.log('Fetching classes for student:', studentId);
+    
     const enrollments = await ClassEnrollment.find({
-      studentId: req.user.id,
+      studentId: studentId,
       status: { $in: ['enrolled', 'pending'] }
     })
     .populate({

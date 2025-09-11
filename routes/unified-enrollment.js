@@ -115,6 +115,9 @@ router.post('/join', unifiedAuth, [
       existingEnrollment.enrollmentMethod = 'join_code';
       await existingEnrollment.save();
       
+      // Update enrollment statistics
+      await classDoc.updateEnrollmentStats();
+      
       res.json({
         success: true,
         message: 'Re-enrolled in class successfully',
@@ -135,6 +138,9 @@ router.post('/join', unifiedAuth, [
       
       // Increment join code usage
       await classDoc.incrementJoinCodeUsage();
+      
+      // Update enrollment statistics
+      await classDoc.updateEnrollmentStats();
       
       res.status(201).json({
         success: true,
