@@ -240,6 +240,8 @@ classSchema.methods.isEnrollmentOpen = function() {
 classSchema.methods.updateEnrollmentStats = async function() {
   const Enrollment = mongoose.model('ClassEnrollment');
   
+  console.log('Updating enrollment stats for class:', this._id);
+  
   const enrolled = await Enrollment.countDocuments({
     classId: this._id,
     status: 'enrolled'
@@ -250,10 +252,15 @@ classSchema.methods.updateEnrollmentStats = async function() {
     status: 'dropped'
   });
   
+  console.log('Enrollment counts:', { enrolled, dropped });
+  
   this.stats.enrolledCount = enrolled;
   this.stats.droppedCount = dropped;
   
-  return this.save();
+  const savedClass = await this.save();
+  console.log('Updated class stats:', savedClass.stats);
+  
+  return savedClass;
 };
 
 // Increment join code usage

@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, param, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const studentAuth = require('../middleware/studentAuth');
+const unifiedAuth = require('../middleware/unifiedAuth');
 const Class = require('../models/Class');
 const ClassEnrollment = require('../models/ClassEnrollment');
 const ClassInvitation = require('../models/ClassInvitation');
@@ -124,6 +125,54 @@ router.post('/join', auth, studentAuth, [
   } catch (error) {
     console.error('Error joining class:', error);
     res.status(500).json({ error: 'Failed to join class' });
+  }
+});
+
+// GET /api/enrollment/my-classes-unified - Get student's enrolled classes (unified auth)
+router.get('/my-classes-unified', unifiedAuth, async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id || req.user.userId;
+    console.log('Fetching classes with unified auth for user:', userId, 'isStudent:', req.user.isStudent);
+    
+    // If it's a student, use their ID directly
+    // If it's an instructor testing, find their linked student account
+    let studentId = userId;
+    if (!req.user.isStudent) {
+      const linkedStudent = await Student.findOne({ email: req.user.email });
+      if (linkedStudent) {
+        studentId = linkedStudent._id;
+      }
+    }
+    
+    const enrollments = await ClassEnrollment.find({
+      studentId: studentId,
+      status: { $in: ['enrolled', 'pending'] }
+    })
+    .populate({
+      path: 'classId',
+      populate: {
+        path: 'instructorId',
+        select: 'firstName lastName email'
+      }
+    })
+    .sort({ enrolledAt: -1 });
+    
+    console.log('Found enrollments:', enrollments.length);
+    
+    const classes = enrollments.map(enrollment => ({
+      enrollmentId: enrollment._id,
+      status: enrollment.status,
+      enrolledAt: enrollment.enrolledAt,
+      lastActivity: enrollment.lastActivityAt,
+      stats: enrollment.stats,
+      academicInfo: enrollment.academicInfo,
+      class: enrollment.classId
+    }));
+    
+    res.json({ classes });
+  } catch (error) {
+    console.error('Error fetching enrolled classes (unified):', error);
+    res.status(500).json({ error: 'Failed to fetch classes' });
   }
 });
 
