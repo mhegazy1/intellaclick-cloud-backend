@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, param, query, validationResult } = require('express-validator');
 const auth = require('../middleware/authWithRole'); // Enhanced auth that fetches role from DB
 const instructorAuth = require('../middleware/instructorAuth');
+const unifiedAuth = require('../middleware/unifiedAuth');
 const Class = require('../models/Class');
 const ClassEnrollment = require('../models/ClassEnrollment');
 const ClassInvitation = require('../models/ClassInvitation');
@@ -255,6 +256,57 @@ router.get('/:id', auth, param('id').isMongoId(), async (req, res) => {
   } catch (error) {
     console.error('Error fetching class:', error);
     res.status(500).json({ error: 'Failed to fetch class' });
+  }
+});
+
+// GET /api/classes/:id/details-unified - Get class details with unified auth
+router.get('/:id/details-unified', unifiedAuth, param('id').isMongoId(), async (req, res) => {
+  try {
+    const classDoc = await Class.findById(req.params.id)
+      .populate('instructorId', 'firstName lastName email');
+    
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    
+    // Get user ID
+    const userId = req.user._id || req.user.id || req.user.userId;
+    let studentId = userId;
+    
+    console.log('Getting class details for user:', userId, 'isStudent:', req.user.isStudent);
+    
+    // If it's an instructor, find their linked student account
+    if (!req.user.isStudent) {
+      const linkedStudent = await Student.findOne({ email: req.user.email });
+      if (linkedStudent) {
+        studentId = linkedStudent._id;
+      }
+    }
+    
+    // Get student's enrollment
+    const enrollment = await ClassEnrollment.findOne({
+      classId: classDoc._id,
+      studentId: studentId
+    });
+    
+    if (!enrollment || (enrollment.status !== 'enrolled' && enrollment.status !== 'pending')) {
+      return res.status(403).json({ error: 'Not enrolled in this class' });
+    }
+    
+    res.json({
+      class: classDoc,
+      enrollment: {
+        enrollmentId: enrollment._id,
+        status: enrollment.status,
+        enrolledAt: enrollment.enrolledAt,
+        lastActivity: enrollment.lastActivityAt,
+        stats: enrollment.stats,
+        academicInfo: enrollment.academicInfo
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching class details (unified):', error);
+    res.status(500).json({ error: 'Failed to fetch class details' });
   }
 });
 
