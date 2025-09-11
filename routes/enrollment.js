@@ -222,6 +222,55 @@ router.get('/my-classes', auth, studentAuth, async (req, res) => {
   }
 });
 
+// POST /api/enrollment/drop-unified/:enrollmentId - Drop from class (unified auth)
+router.post('/drop-unified/:enrollmentId', unifiedAuth, [
+  param('enrollmentId').isMongoId(),
+  body('reason').optional().trim()
+], async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id || req.user.userId;
+    let studentId = userId;
+    
+    // If it's an instructor, find their linked student account
+    if (!req.user.isStudent) {
+      const linkedStudent = await Student.findOne({ email: req.user.email });
+      if (linkedStudent) {
+        studentId = linkedStudent._id;
+      }
+    }
+    
+    const enrollment = await ClassEnrollment.findOne({
+      _id: req.params.enrollmentId,
+      studentId: studentId
+    }).populate('classId');
+    
+    if (!enrollment) {
+      return res.status(404).json({ error: 'Enrollment not found' });
+    }
+    
+    if (enrollment.status !== 'enrolled') {
+      return res.status(400).json({ error: 'Cannot drop from class with current status' });
+    }
+    
+    // Check if past drop deadline
+    const classDoc = enrollment.classId;
+    if (classDoc.enrollmentDeadline && new Date() > classDoc.enrollmentDeadline) {
+      return res.status(400).json({ error: 'Drop deadline has passed' });
+    }
+    
+    await enrollment.drop(req.body.reason || 'student_initiated');
+    await classDoc.updateEnrollmentStats();
+    
+    res.json({
+      success: true,
+      message: 'Successfully dropped from class'
+    });
+  } catch (error) {
+    console.error('Error dropping class:', error);
+    res.status(500).json({ error: 'Failed to drop class' });
+  }
+});
+
 // POST /api/enrollment/drop/:enrollmentId - Drop from class
 router.post('/drop/:enrollmentId', auth, studentAuth, [
   param('enrollmentId').isMongoId(),

@@ -1194,4 +1194,47 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
   }
 });
 
+// DELETE /api/classes/:id - Delete class (soft delete)
+router.delete('/:id', auth, instructorAuth, param('id').isMongoId(), async (req, res) => {
+  try {
+    const classDoc = await Class.findById(req.params.id);
+    
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    
+    // Check ownership
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Check if class has active enrollments
+    const activeEnrollments = await ClassEnrollment.countDocuments({
+      classId: classDoc._id,
+      status: 'enrolled'
+    });
+    
+    if (activeEnrollments > 0 && !req.query.force) {
+      return res.status(400).json({ 
+        error: 'Cannot delete class with active enrollments',
+        activeEnrollments,
+        hint: 'Add ?force=true to delete anyway'
+      });
+    }
+    
+    // Soft delete - mark as deleted
+    classDoc.status = 'deleted';
+    classDoc.deletedAt = new Date();
+    await classDoc.save();
+    
+    res.json({ 
+      success: true,
+      message: 'Class deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting class:', error);
+    res.status(500).json({ error: 'Failed to delete class' });
+  }
+});
+
 module.exports = router;
