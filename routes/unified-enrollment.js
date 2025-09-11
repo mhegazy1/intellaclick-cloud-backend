@@ -30,11 +30,27 @@ router.post('/join', authWithRole, [
     
     // Check if join code is valid
     if (!classDoc.isJoinCodeValid()) {
+      console.log('Join code validation failed:', {
+        hasJoinCode: !!classDoc.joinCode,
+        joinCodeExpiry: classDoc.joinCodeExpiry,
+        isExpired: classDoc.joinCodeExpiry && new Date() > classDoc.joinCodeExpiry,
+        usageLimit: classDoc.joinCodeUsageLimit,
+        usageCount: classDoc.joinCodeUsageCount,
+        status: classDoc.status
+      });
       return res.status(400).json({ error: 'Join code has expired or reached usage limit' });
     }
     
     // Check if enrollment is open
     if (!classDoc.isEnrollmentOpen()) {
+      console.log('Enrollment check failed:', {
+        allowSelfEnrollment: classDoc.allowSelfEnrollment,
+        enrollmentDeadline: classDoc.enrollmentDeadline,
+        isDeadlinePassed: classDoc.enrollmentDeadline && new Date() > classDoc.enrollmentDeadline,
+        enrollmentLimit: classDoc.enrollmentLimit,
+        enrolledCount: classDoc.stats?.enrolledCount,
+        status: classDoc.status
+      });
       return res.status(400).json({ error: 'Enrollment is closed for this class' });
     }
     
@@ -112,7 +128,7 @@ router.post('/join', authWithRole, [
         classId: classDoc._id,
         studentId: studentId,
         enrollmentMethod: 'join_code',
-        status: classDoc.settings.requireApproval ? 'pending' : 'enrolled',
+        status: classDoc.requireApproval ? 'pending' : 'enrolled',
         enrolledAt: new Date()
       });
       
@@ -123,12 +139,12 @@ router.post('/join', authWithRole, [
       
       res.status(201).json({
         success: true,
-        message: classDoc.settings.requireApproval 
+        message: classDoc.requireApproval 
           ? 'Enrollment pending instructor approval' 
           : 'Enrolled in class successfully',
         enrollment: enrollment,
         class: classDoc,
-        requiresApproval: classDoc.settings.requireApproval
+        requiresApproval: classDoc.requireApproval
       });
     }
   } catch (error) {

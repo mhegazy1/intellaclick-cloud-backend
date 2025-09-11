@@ -256,4 +256,10 @@ classSchema.methods.updateEnrollmentStats = async function() {
   return this.save();
 };
 
+// Increment join code usage
+classSchema.methods.incrementJoinCodeUsage = async function() {
+  this.joinCodeUsageCount = (this.joinCodeUsageCount || 0) + 1;
+  return this.save();
+};
+
 module.exports = mongoose.model('Class', classSchema);
