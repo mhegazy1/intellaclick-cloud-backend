@@ -58,6 +58,13 @@ router.post('/join', unifiedAuth, [
     let studentId = userId;
     let studentData;
     
+    console.log('Unified enrollment - User info:', {
+      userId,
+      isStudent: req.user.isStudent,
+      email: req.user.email,
+      type: req.user.type
+    });
+    
     // If it's an instructor account, we need to create a corresponding student record
     if (!req.user.isStudent) { // This is a User (instructor) account
       // Check if this instructor already has a student account
@@ -135,6 +142,13 @@ router.post('/join', unifiedAuth, [
       });
       
       await enrollment.save();
+      
+      console.log('Created new enrollment:', {
+        enrollmentId: enrollment._id,
+        studentId: enrollment.studentId,
+        classId: enrollment.classId,
+        status: enrollment.status
+      });
       
       // Increment join code usage
       await classDoc.incrementJoinCodeUsage();

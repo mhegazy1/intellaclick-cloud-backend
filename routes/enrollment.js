@@ -146,6 +146,16 @@ router.get('/my-classes', auth, studentAuth, async (req, res) => {
     })
     .sort({ enrolledAt: -1 });
     
+    console.log('Found enrollments for student:', {
+      studentId,
+      count: enrollments.length,
+      enrollments: enrollments.map(e => ({
+        id: e._id,
+        status: e.status,
+        classId: e.classId?._id
+      }))
+    });
+    
     const classes = enrollments.map(enrollment => ({
       enrollmentId: enrollment._id,
       status: enrollment.status,
