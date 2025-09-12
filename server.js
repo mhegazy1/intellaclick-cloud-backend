@@ -145,6 +145,7 @@ const enrollmentRoutes = require('./routes/enrollment');
 const unifiedEnrollmentRoutes = require('./routes/unified-enrollment');
 // Use MongoDB-backed sync routes
 const syncRoutes = require('./routes/sync-mongodb');
+const debugClassesRoutes = require('./routes/debug-classes');
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -202,6 +203,7 @@ app.use('/api/ta-management', taManagementRoutes); // Teaching assistant managem
 app.use('/api/clicker-sync', clickerSyncRoutes); // Desktop app clicker results sync
 app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/debug-classes', debugClassesRoutes);
 
 // DEBUG ENDPOINTS - TEMPORARY for troubleshooting student issues
 
