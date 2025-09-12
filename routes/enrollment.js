@@ -299,13 +299,13 @@ router.get('/debug/:enrollmentId', async (req, res) => {
 // POST /api/enrollment/drop-unified/:enrollmentId - Drop from class (unified auth)
 router.post('/drop-unified/:enrollmentId', unifiedAuth, async (req, res) => {
   try {
-    console.log('Drop class request:', {
+    console.log('[DROP-UNIFIED] Start drop request:', {
       enrollmentId: req.params.enrollmentId,
-      enrollmentIdLength: req.params.enrollmentId?.length,
-      enrollmentIdType: typeof req.params.enrollmentId,
-      user: req.user.email,
-      isStudent: req.user.isStudent,
-      headers: req.headers
+      user: {
+        email: req.user.email,
+        isStudent: req.user.isStudent,
+        id: req.user._id || req.user.id || req.user.userId
+      }
     });
     
     const userId = req.user._id || req.user.id || req.user.userId;
@@ -313,58 +313,104 @@ router.post('/drop-unified/:enrollmentId', unifiedAuth, async (req, res) => {
     
     // If it's an instructor, find their linked student account
     if (!req.user.isStudent) {
+      console.log('[DROP-UNIFIED] User is instructor, looking for linked student account...');
       const linkedStudent = await Student.findOne({ email: req.user.email });
       if (linkedStudent) {
         studentId = linkedStudent._id;
+        console.log('[DROP-UNIFIED] Found linked student account:', studentId);
+      } else {
+        console.log('[DROP-UNIFIED] No linked student account found');
+        return res.status(400).json({ 
+          error: 'No student account found for this email',
+          hint: 'Please ensure you have enrolled in the class using this email'
+        });
       }
     }
     
+    console.log('[DROP-UNIFIED] Looking up enrollment...');
     const enrollment = await ClassEnrollment.findOne({
       _id: req.params.enrollmentId,
       studentId: studentId
     }).populate('classId');
     
-    console.log('Enrollment lookup result:', {
-      enrollmentId: req.params.enrollmentId,
-      studentId: studentId,
-      found: !!enrollment,
-      enrollment: enrollment ? { id: enrollment._id, status: enrollment.status } : null
-    });
-    
     if (!enrollment) {
-      // Try to find any enrollment with this ID to debug
-      const anyEnrollment = await ClassEnrollment.findById(req.params.enrollmentId);
-      console.log('Debug - Any enrollment with this ID:', {
-        found: !!anyEnrollment,
-        enrollmentStudentId: anyEnrollment?.studentId,
-        requestStudentId: studentId,
-        match: anyEnrollment?.studentId?.toString() === studentId.toString()
+      // Debug: find the enrollment regardless of student
+      const anyEnrollment = await ClassEnrollment.findById(req.params.enrollmentId)
+        .populate('studentId', 'email');
+      
+      console.log('[DROP-UNIFIED] Enrollment not found for student. Debug info:', {
+        requestedEnrollmentId: req.params.enrollmentId,
+        requestedStudentId: studentId,
+        actualEnrollment: anyEnrollment ? {
+          id: anyEnrollment._id,
+          studentEmail: anyEnrollment.studentId?.email,
+          studentId: anyEnrollment.studentId?._id
+        } : 'Not found'
       });
-      return res.status(404).json({ error: 'Enrollment not found' });
+      
+      return res.status(404).json({ 
+        error: 'Enrollment not found',
+        debug: {
+          enrollmentId: req.params.enrollmentId,
+          userEmail: req.user.email,
+          isInstructor: !req.user.isStudent
+        }
+      });
     }
     
+    console.log('[DROP-UNIFIED] Found enrollment:', {
+      id: enrollment._id,
+      status: enrollment.status,
+      className: enrollment.classId?.name
+    });
+    
     if (enrollment.status !== 'enrolled') {
-      return res.status(400).json({ error: 'Cannot drop from class with current status' });
+      return res.status(400).json({ 
+        error: 'Cannot drop from class with current status',
+        currentStatus: enrollment.status
+      });
     }
     
     // Check if past drop deadline
     const classDoc = enrollment.classId;
+    if (!classDoc) {
+      console.error('[DROP-UNIFIED] Class document not populated!');
+      return res.status(500).json({ error: 'Class information not found' });
+    }
+    
     if (classDoc.enrollmentDeadline && new Date() > classDoc.enrollmentDeadline) {
       return res.status(400).json({ error: 'Drop deadline has passed' });
     }
     
-    const reason = req.body?.reason || 'student_initiated';
-    console.log('Dropping enrollment with reason:', reason);
-    await enrollment.drop(reason);
-    await classDoc.updateEnrollmentStats();
+    console.log('[DROP-UNIFIED] Executing drop...');
+    
+    // Simple status update instead of using the drop method
+    enrollment.status = 'dropped';
+    enrollment.droppedAt = new Date();
+    if (enrollment.metadata) {
+      enrollment.metadata.set('dropReason', 'student_initiated');
+    }
+    
+    await enrollment.save();
+    console.log('[DROP-UNIFIED] Enrollment saved with dropped status');
+    
+    // Update class stats
+    if (classDoc.updateEnrollmentStats) {
+      await classDoc.updateEnrollmentStats();
+      console.log('[DROP-UNIFIED] Class stats updated');
+    }
     
     res.json({
       success: true,
       message: 'Successfully dropped from class'
     });
   } catch (error) {
-    console.error('Error dropping class:', error);
-    res.status(500).json({ error: 'Failed to drop class' });
+    console.error('[DROP-UNIFIED] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to drop class',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
