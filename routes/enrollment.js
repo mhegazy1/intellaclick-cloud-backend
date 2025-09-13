@@ -229,6 +229,7 @@ router.get('/test', (req, res) => {
     endpoints: [
       'POST /api/enrollment/join',
       'GET /api/enrollment/my-classes',
+      'GET /api/enrollment/class/:classId/students',
       'POST /api/enrollment/drop-unified/:enrollmentId',
       'POST /api/enrollment/drop/:enrollmentId'
     ]
@@ -293,6 +294,60 @@ router.get('/debug/:enrollmentId', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/enrollment/debug/class/:classId/roster - Debug roster endpoint
+router.get('/debug/class/:classId/roster', async (req, res) => {
+  try {
+    const { classId } = req.params;
+    
+    // First check if class exists
+    const classDoc = await Class.findById(classId);
+    if (!classDoc) {
+      return res.json({
+        error: 'Class not found',
+        classId: classId
+      });
+    }
+    
+    // Get all enrollments for this class
+    const enrollments = await ClassEnrollment.find({ classId: classId })
+      .populate('studentId', 'email profile');
+    
+    // Get enrollment count by status
+    const statusCounts = {};
+    enrollments.forEach(e => {
+      statusCounts[e.status] = (statusCounts[e.status] || 0) + 1;
+    });
+    
+    res.json({
+      classInfo: {
+        id: classDoc._id,
+        name: classDoc.name,
+        instructorId: classDoc.instructorId
+      },
+      enrollmentStats: {
+        total: enrollments.length,
+        byStatus: statusCounts
+      },
+      enrollments: enrollments.map(e => ({
+        _id: e._id,
+        status: e.status,
+        studentId: e.studentId?._id,
+        studentEmail: e.studentId?.email,
+        studentName: e.studentId?.profile ? 
+          `${e.studentId.profile.firstName} ${e.studentId.profile.lastName}` : 
+          'No profile data',
+        hasStudentData: !!e.studentId,
+        enrolledAt: e.enrolledAt
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error.message,
+      stack: error.stack
+    });
   }
 });
 
@@ -722,31 +777,74 @@ router.get('/class/:classId/students', auth, [
   param('classId').isMongoId()
 ], async (req, res) => {
   try {
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.error('[GET /enrollment/class/:classId/students] Validation errors:', errors.array());
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    console.log('[GET /enrollment/class/:classId/students] Request params:', {
+      classId: req.params.classId,
+      userId: req.user?.id || req.user?._id,
+      queryStatus: req.query.status
+    });
+    
     const classDoc = await Class.findById(req.params.classId);
     
     if (!classDoc) {
+      console.error('[GET /enrollment/class/:classId/students] Class not found:', req.params.classId);
       return res.status(404).json({ error: 'Class not found' });
     }
     
     // Check if user is instructor or enrolled student
-    const isInstructor = classDoc.instructorId.toString() === req.user.id;
-    const isStudent = !isInstructor;
+    const userId = req.user._id || req.user.id || req.user.userId;
     
-    if (isStudent) {
+    // Ensure proper comparison - convert both to strings
+    // Handle case where userId might already be a string
+    const userIdStr = userId?.toString ? userId.toString() : String(userId);
+    
+    // Handle populated instructorId (object with _id) vs plain ID
+    let instructorIdStr;
+    if (typeof classDoc.instructorId === 'object' && classDoc.instructorId._id) {
+        // Populated - extract the _id
+        instructorIdStr = classDoc.instructorId._id.toString();
+    } else {
+        // Not populated - use directly
+        instructorIdStr = classDoc.instructorId?.toString ? classDoc.instructorId.toString() : String(classDoc.instructorId);
+    }
+    
+    const isInstructor = instructorIdStr === userIdStr;
+    
+    console.log('[GET /enrollment/class/:classId/students] Auth check:', {
+      userId: userIdStr,
+      instructorId: instructorIdStr,
+      isInstructor: isInstructor,
+      userRole: req.user.role,
+      instructorIdType: typeof classDoc.instructorId
+    });
+    
+    // If not instructor, check if they're an enrolled student
+    if (!isInstructor) {
       const enrollment = await ClassEnrollment.findOne({
         classId: classDoc._id,
-        studentId: req.user.id,
+        studentId: userId,
         status: 'enrolled'
       });
       
+      console.log('[GET /enrollment/class/:classId/students] Student access check:', {
+        hasEnrollment: !!enrollment,
+        userId: userId
+      });
+      
       if (!enrollment) {
-        return res.status(403).json({ error: 'Access denied' });
+        return res.status(403).json({ error: 'Access denied - you must be enrolled in this class or be the instructor' });
       }
     }
     
     // Get enrollments based on role
     const query = { classId: req.params.classId };
-    if (isStudent) {
+    if (!isInstructor) {
       // Students only see enrolled students
       query.status = 'enrolled';
     } else if (req.query.status) {
@@ -754,26 +852,58 @@ router.get('/class/:classId/students', auth, [
       query.status = req.query.status;
     }
     
+    console.log('[GET /enrollment/class/:classId/students] Query:', query);
+    
     const enrollments = await ClassEnrollment.find(query)
       .populate('studentId', 'email profile')
-      .sort({ 'studentId.profile.lastName': 1, 'studentId.profile.firstName': 1 });
+      .sort({ enrolledAt: -1 }); // Sort by enrollment date instead of name since we can't sort by populated fields
     
-    const formattedEnrollments = enrollments.map(enrollment => ({
-      _id: enrollment._id,
-      status: enrollment.status,
-      enrolledAt: enrollment.enrolledAt,
-      stats: enrollment.stats,
-      student: {
-        _id: enrollment.studentId._id,
-        email: enrollment.studentId.email,
-        firstName: enrollment.studentId.profile?.firstName,
-        lastName: enrollment.studentId.profile?.lastName
-      }
-    }));
+    console.log('[GET /enrollment/class/:classId/students] Found enrollments:', {
+      count: enrollments.length,
+      sample: enrollments.length > 0 ? {
+        hasStudentId: !!enrollments[0].studentId,
+        studentIdType: typeof enrollments[0].studentId
+      } : null
+    });
+    
+    // Filter out any enrollments where student data couldn't be populated
+    const validEnrollments = enrollments.filter(enrollment => enrollment.studentId);
+    
+    const formattedEnrollments = validEnrollments.map(enrollment => {
+      // Safely access student data with null checks
+      const student = enrollment.studentId;
+      return {
+        _id: enrollment._id,
+        status: enrollment.status,
+        enrolledAt: enrollment.enrolledAt,
+        stats: enrollment.stats,
+        student: student ? {
+          _id: student._id,
+          email: student.email,
+          firstName: student.profile?.firstName || '',
+          lastName: student.profile?.lastName || ''
+        } : null
+      };
+    })
+    // Sort by name after population
+    .sort((a, b) => {
+      const lastNameCompare = (a.student?.lastName || '').localeCompare(b.student?.lastName || '');
+      if (lastNameCompare !== 0) return lastNameCompare;
+      return (a.student?.firstName || '').localeCompare(b.student?.firstName || '');
+    });
+    
+    console.log('[GET /enrollment/class/:classId/students] Returning enrollments:', {
+      count: formattedEnrollments.length,
+      classId: req.params.classId
+    });
     
     res.json({ enrollments: formattedEnrollments });
   } catch (error) {
-    console.error('Error fetching enrollments:', error);
+    console.error('[GET /enrollment/class/:classId/students] Error:', {
+      message: error.message,
+      stack: error.stack,
+      classId: req.params.classId
+    });
     res.status(500).json({ error: 'Failed to fetch enrollments' });
   }
 });
