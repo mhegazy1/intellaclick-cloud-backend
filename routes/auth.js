@@ -86,7 +86,7 @@ router.post('/register', [
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role || 'instructor', // Default to instructor if role is not set
         joinedAt: user.createdAt || new Date().toISOString()
       }
     });
@@ -142,7 +142,7 @@ router.post('/login', [
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role || 'instructor', // Default to instructor if role is not set
         joinedAt: user.createdAt || new Date().toISOString()
       }
     });
@@ -171,7 +171,7 @@ router.get('/me', auth, async (req, res) => {
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role || 'instructor', // Default to instructor if role is not set
         joinedAt: user.createdAt || new Date().toISOString()
       }
     });
@@ -230,7 +230,7 @@ router.get('/user', auth, async (req, res) => {
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role || 'instructor', // Default to instructor if role is not set
         joinedAt: user.createdAt || new Date().toISOString()
       }
     });
@@ -321,7 +321,7 @@ router.put('/profile', [
         name: `${user.firstName} ${user.lastName}`,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role || 'instructor', // Default to instructor if role is not set
         joinedAt: user.createdAt || new Date().toISOString()
       }
     });
