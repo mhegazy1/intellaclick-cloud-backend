@@ -775,8 +775,9 @@
 
             container.innerHTML = classes.map(classData => {
                 const stats = classData.stats || {};
-                const totalEnrolled = stats.enrolledCount || 0;
-                const pendingCount = stats.pendingCount || 0;
+                const enrollmentSummary = classData.enrollmentSummary || {};
+                const totalEnrolled = enrollmentSummary.totalEnrolled || stats.enrolledCount || 0;
+                const pendingCount = enrollmentSummary.pending || stats.pendingCount || 0;
 
                 return `
                     <div class="class-card" onclick="viewClassDetails('${classData._id}')">
@@ -842,6 +843,9 @@
                                 </button>
                                 <button class="btn btn-secondary" onclick="editClass(event, '${classData._id}')">
                                     Settings
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteClass(event, '${classData._id}', '${classData.name}')">
+                                    Delete
                                 </button>
                             </div>
                         </div>
@@ -967,6 +971,61 @@
             event.stopPropagation();
             // TODO: Implement edit functionality
             showToast('Edit functionality coming soon', 'info');
+        }
+
+        async function deleteClass(event, classId, className) {
+            event.stopPropagation();
+            
+            // Confirm deletion
+            const confirmMessage = `Are you sure you want to delete "${className}"? This action cannot be undone.`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            try {
+                // First try without force
+                let response = await fetch(`https://api.intellaclick.com/api/classes/${classId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // If there are active enrollments, ask if they want to force delete
+                    if (data.activeEnrollments > 0) {
+                        const forceMessage = `This class has ${data.activeEnrollments} active enrollments. Do you want to delete it anyway?`;
+                        if (confirm(forceMessage)) {
+                            // Try again with force=true
+                            response = await fetch(`https://api.intellaclick.com/api/classes/${classId}?force=true`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                }
+                            });
+
+                            if (!response.ok) {
+                                const forceData = await response.json();
+                                throw new Error(forceData.error || 'Failed to delete class');
+                            }
+                        } else {
+                            return; // User cancelled force deletion
+                        }
+                    } else {
+                        throw new Error(data.error || 'Failed to delete class');
+                    }
+                }
+
+                showToast(`Class "${className}" has been deleted successfully!`, 'success');
+                // Reload the classes list
+                await loadClasses();
+                await loadStats();
+            } catch (error) {
+                console.error('Error deleting class:', error);
+                showToast(error.message || 'Failed to delete class', 'error');
+            }
         }
 
         function showModal(modalId) {

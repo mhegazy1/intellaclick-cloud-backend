@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Drop Endpoint</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 3px;
+            white-space: pre-wrap;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Drop Endpoint</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Enrollment Router</h2>
+        <button onclick="testRouter()">Test Router</button>
+        <div id="router-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Enrollment ID Validation</h2>
+        <input type="text" id="test-enrollment-id" placeholder="Enter enrollment ID" value="507f1f77bcf86cd799439011">
+        <button onclick="testEnrollmentId()">Test ID</button>
+        <div id="id-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Drop Endpoint</h2>
+        <input type="text" id="drop-token" placeholder="Enter auth token">
+        <input type="text" id="drop-enrollment-id" placeholder="Enter enrollment ID">
+        <button onclick="testDrop('unified')">Test Drop Unified</button>
+        <button onclick="testDrop('regular')">Test Drop Regular</button>
+        <div id="drop-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://api.intellaclick.com';
+
+        async function testRouter() {
+            const resultDiv = document.getElementById('router-result');
+            try {
+                const response = await fetch(`${API_BASE}/api/enrollment/test`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<span class="success">Success:</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Error:</span> ${error.message}`;
+            }
+        }
+
+        async function testEnrollmentId() {
+            const resultDiv = document.getElementById('id-result');
+            const enrollmentId = document.getElementById('test-enrollment-id').value;
+            
+            if (!enrollmentId) {
+                resultDiv.innerHTML = '<span class="error">Please enter an enrollment ID</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/enrollment/test/${enrollmentId}`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<span class="${data.isValidObjectId ? 'success' : 'error'}">Validation Result:</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Error:</span> ${error.message}`;
+            }
+        }
+
+        async function testDrop(type) {
+            const resultDiv = document.getElementById('drop-result');
+            const token = document.getElementById('drop-token').value;
+            const enrollmentId = document.getElementById('drop-enrollment-id').value;
+
+            if (!token || !enrollmentId) {
+                resultDiv.innerHTML = '<span class="error">Please enter both token and enrollment ID</span>';
+                return;
+            }
+
+            const endpoint = type === 'unified' ? 
+                `${API_BASE}/api/enrollment/drop-unified/${enrollmentId}` :
+                `${API_BASE}/api/enrollment/drop/${enrollmentId}`;
+
+            try {
+                resultDiv.innerHTML = 'Testing...';
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `<span class="${response.ok ? 'success' : 'error'}">Response (${response.status}):</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">Error:</span> ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
