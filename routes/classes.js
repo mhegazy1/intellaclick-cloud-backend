@@ -225,11 +225,12 @@ router.get('/:id', auth, param('id').isMongoId(), async (req, res) => {
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    // Check access
+    // Check access - ensure both sides are strings for comparison
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
     const hasAccess = 
-      classDoc.instructorId._id.toString() === (req.user._id || req.user.id || req.user.userId) ||
-      classDoc.coInstructors.some(co => co._id.toString() === (req.user._id || req.user.id || req.user.userId)) ||
-      classDoc.teachingAssistants.some(ta => ta._id.toString() === (req.user._id || req.user.id || req.user.userId));
+      classDoc.instructorId._id.toString() === userId ||
+      classDoc.coInstructors.some(co => co._id.toString() === userId) ||
+      classDoc.teachingAssistants.some(ta => ta._id.toString() === userId);
     
     if (!hasAccess && req.user.role !== 'admin') {
       // Check if student is enrolled
@@ -469,11 +470,12 @@ router.get('/:id/students', auth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    // Check access
+    // Check access - ensure consistent string comparison
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
     const isInstructor = 
-      classDoc.instructorId.toString() === (req.user._id || req.user.id || req.user.userId) ||
-      classDoc.coInstructors.includes((req.user._id || req.user.id || req.user.userId)) ||
-      classDoc.teachingAssistants.includes((req.user._id || req.user.id || req.user.userId));
+      classDoc.instructorId.toString() === userId ||
+      classDoc.coInstructors.some(id => id.toString() === userId) ||
+      classDoc.teachingAssistants.some(id => id.toString() === userId);
     
     if (!isInstructor && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied' });
@@ -752,7 +754,8 @@ router.post('/:id/invite', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId._id.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
+    if (classDoc.instructorId._id.toString() !== userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -911,7 +914,8 @@ router.post('/:id/invitations/:invitationId/resend', auth, instructorAuth, [
     const classDoc = await Class.findById(req.params.id)
       .populate('instructorId', 'firstName lastName email');
     
-    if (classDoc.instructorId._id.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
+    if (classDoc.instructorId._id.toString() !== userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
