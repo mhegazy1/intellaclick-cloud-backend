@@ -241,6 +241,7 @@ router.get('/user', auth, async (req, res) => {
 });
 
 // DEBUG endpoint - Remove in production!
+// Deployment trigger: Force redeploy at 8:10 PM
 if (process.env.NODE_ENV === 'development') {
   router.post('/debug/test-password', async (req, res) => {
     try {
