@@ -40,6 +40,12 @@ const sessionSchema = new mongoose.Schema({
     required: false,
     description: 'Whether students must be logged in to join this session'
   },
+  restrictToEnrolled: {
+    type: Boolean,
+    default: true,
+    required: false,
+    description: 'Whether only enrolled students can join this session'
+  },
   currentQuestion: {
     questionId: String,
     questionText: String,

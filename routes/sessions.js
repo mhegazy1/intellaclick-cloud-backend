@@ -178,15 +178,14 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin } = req.body;
+    const { sessionCode, title, description, requireLogin, classId, restrictToEnrolled } = req.body;
     
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
     console.log('[Sessions] - title:', title);
     console.log('[Sessions] - requireLogin:', requireLogin);
-    console.log('[Sessions] - requireLogin type:', typeof requireLogin);
-    console.log('[Sessions] - requireLogin === true:', requireLogin === true);
-    console.log('[Sessions] - requireLogin === "true":', requireLogin === 'true');
+    console.log('[Sessions] - classId:', classId);
+    console.log('[Sessions] - restrictToEnrolled:', restrictToEnrolled);
     console.log('[Sessions] - User:', req.user);
     
     // Check if session code already exists
@@ -211,11 +210,15 @@ router.post('/', auth, async (req, res) => {
       title,
       description,
       instructorId: req.user.userId || req.user.id, // Handle both token formats
-      status: 'waiting'
+      status: 'waiting',
+      classId: classId || null
     };
     
     // Explicitly set requireLogin with proper boolean conversion
     sessionData.requireLogin = requireLogin === true || requireLogin === 'true' || requireLogin === 1 || requireLogin === '1';
+    
+    // Set restrictToEnrolled (default to true if not specified)
+    sessionData.restrictToEnrolled = restrictToEnrolled !== false && restrictToEnrolled !== 'false';
     
     console.log('[Sessions] Creating session with data:', JSON.stringify(sessionData, null, 2));
     
@@ -255,6 +258,8 @@ router.post('/', auth, async (req, res) => {
         title: session.title,
         status: session.status,
         requireLogin: session.requireLogin,
+        restrictToEnrolled: session.restrictToEnrolled,
+        classId: session.classId,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
       }
     });
@@ -360,7 +365,9 @@ router.get('/code/:sessionCode', async (req, res) => {
         responseCount: session.responses ? session.responses.length : 0,
         totalQuestions: session.totalQuestions || 0,
         questionCount: session.questionsSent ? session.questionsSent.length : 0,
-        requireLogin: requireLogin
+        requireLogin: requireLogin,
+        restrictToEnrolled: session.restrictToEnrolled,
+        classId: session.classId
       }
     });
     
@@ -423,7 +430,33 @@ router.post('/join', async (req, res) => {
       });
     }
     
-    console.log('[Sessions] Login check passed, allowing join');
+    console.log('[Sessions] Login check passed, checking enrollment...');
+    
+    // Check enrollment restriction
+    if (session.restrictToEnrolled && session.classId && userId) {
+      console.log('[Sessions] Checking enrollment for class:', session.classId);
+      
+      // Import the enrollment model
+      const ClassEnrollment = require('../models/ClassEnrollment');
+      
+      // Check if student is enrolled
+      const enrollment = await ClassEnrollment.findOne({
+        classId: session.classId,
+        studentId: userId,
+        status: 'enrolled'
+      });
+      
+      if (!enrollment) {
+        console.log('[Sessions] Student not enrolled in class - rejecting join');
+        return res.status(403).json({
+          success: false,
+          error: 'Not enrolled in class',
+          message: 'You must be enrolled in this class to join the session.'
+        });
+      }
+      
+      console.log('[Sessions] Student is enrolled, allowing join');
+    }
     
     // Initialize participants array if it doesn't exist
     if (!session.participants) {
@@ -462,6 +495,18 @@ router.post('/join', async (req, res) => {
       // Generate new participant ID
       const participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
       
+      // Check if enrolled (for tracking purposes)
+      let isEnrolled = false;
+      if (session.classId && userId) {
+        const ClassEnrollment = require('../models/ClassEnrollment');
+        const enrollment = await ClassEnrollment.findOne({
+          classId: session.classId,
+          studentId: userId,
+          status: 'enrolled'
+        });
+        isEnrolled = !!enrollment;
+      }
+      
       // Add new participant to session
       session.participants.push({
         userId: userId || null,
@@ -469,7 +514,8 @@ router.post('/join', async (req, res) => {
         deviceId: deviceId || null,
         name: name || 'Anonymous',
         joinedAt: new Date(),
-        lastJoinedAt: new Date()
+        lastJoinedAt: new Date(),
+        isEnrolled: isEnrolled
       });
       
       console.log('[Sessions] Saving session with new participant');

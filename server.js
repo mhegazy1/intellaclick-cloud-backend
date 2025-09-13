@@ -48,8 +48,8 @@ const corsOptions = {
     // Add production domains
     const productionOrigins = [
       'https://instructor.intellaclick.com',
-      'https://join.intellaquiz.com',
-      'https://student.intellaquiz.com'
+      'https://join.intellaclick.com',
+      'https://student.intellaclick.com'
     ];
     
     // In production, add common Netlify patterns
@@ -68,7 +68,7 @@ const corsOptions = {
     }
     
     // Combine all allowed origins
-    const allAllowedOrigins = [...defaultOrigins, ...allowedOrigins];
+    const allAllowedOrigins = [...defaultOrigins, ...productionOrigins, ...allowedOrigins];
     
     if (allAllowedOrigins.includes(origin)) {
       callback(null, true);
