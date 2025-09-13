@@ -389,8 +389,9 @@ router.put('/:id', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    // Check ownership
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId) && req.user.role !== 'admin') {
+    // Check ownership - ensure both sides are strings for comparison
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
+    if (classDoc.instructorId.toString() !== userId && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -421,7 +422,7 @@ router.post('/:id/generate-join-code', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -522,7 +523,7 @@ router.get('/:id/export-roster', auth, instructorAuth, param('id').isMongoId(), 
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -588,7 +589,7 @@ router.post('/:id/students/add', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -686,7 +687,7 @@ router.delete('/:id/students/:enrollmentId', auth, instructorAuth, [
     }
     
     const classDoc = await Class.findById(req.params.id);
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -712,7 +713,7 @@ router.post('/:id/archive', auth, instructorAuth, param('id').isMongoId(), async
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -870,7 +871,7 @@ router.get('/:id/invitations', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -983,7 +984,7 @@ router.post('/:id/upload-roster', auth, instructorAuth, [
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId)) {
+    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -1203,8 +1204,9 @@ router.delete('/:id', auth, instructorAuth, param('id').isMongoId(), async (req,
       return res.status(404).json({ error: 'Class not found' });
     }
     
-    // Check ownership
-    if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId) && req.user.role !== 'admin') {
+    // Check ownership - ensure both sides are strings for comparison
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
+    if (classDoc.instructorId.toString() !== userId && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied' });
     }
     
