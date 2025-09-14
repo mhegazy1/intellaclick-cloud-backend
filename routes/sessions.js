@@ -1006,6 +1006,53 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
+// Update session status (PATCH endpoint for frontend compatibility)
+router.patch('/:id/status', auth, async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Verify the instructor owns this session
+    if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    const { status } = req.body;
+    
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'Status is required' });
+    }
+    
+    // Update status
+    session.status = status;
+    
+    // If ending the session, clear current question
+    if (status === 'ended') {
+      session.currentQuestion = null;
+      console.log('[Sessions] Ending session:', session.sessionCode);
+    }
+    
+    await session.save();
+    
+    res.json({
+      success: true,
+      message: 'Session status updated successfully',
+      session: {
+        id: session._id,
+        sessionCode: session.sessionCode,
+        status: session.status
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating session status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get participants by session code (for desktop app polling)
 router.get('/code/:sessionCode/participants', async (req, res) => {
   try {
