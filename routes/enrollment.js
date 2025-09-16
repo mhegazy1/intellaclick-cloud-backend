@@ -25,7 +25,7 @@ const upload = multer({
 });
 
 // POST /api/enrollment/join - Join class with join code
-router.post('/join', auth, studentAuth, [
+router.post('/join', auth, [
   body('joinCode').notEmpty().trim().toUpperCase()
 ], async (req, res) => {
   try {
