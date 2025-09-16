@@ -195,8 +195,36 @@ router.post('/', auth, instructorAuth, classValidation, async (req, res) => {
     // Create class
     const newClass = new Class(classData);
     
-    // Generate join code
-    await newClass.generateJoinCode();
+    // Handle custom join code or generate one
+    if (req.body.customJoinCode) {
+      const customCode = req.body.customJoinCode.toUpperCase();
+      
+      // Validate custom code format
+      if (!/^[A-Z0-9]{4,12}$/.test(customCode)) {
+        return res.status(400).json({ 
+          error: 'Invalid join code format. Must be 4-12 characters, letters and numbers only.' 
+        });
+      }
+      
+      // Check if code already exists
+      const existing = await Class.findOne({ joinCode: customCode });
+      if (existing) {
+        return res.status(400).json({ 
+          error: 'This join code is already in use. Please choose a different code.' 
+        });
+      }
+      
+      newClass.joinCode = customCode;
+      // Set default expiry for custom codes
+      if (!newClass.joinCodeExpiry) {
+        const expiryDate = new Date(newClass.endDate);
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        newClass.joinCodeExpiry = expiryDate;
+      }
+    } else {
+      // Generate random join code
+      await newClass.generateJoinCode();
+    }
     
     await newClass.save();
     
