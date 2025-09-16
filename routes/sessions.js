@@ -178,7 +178,7 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin, classId, restrictToEnrolled } = req.body;
+    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled } = req.body;
     
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
@@ -211,7 +211,8 @@ router.post('/', auth, async (req, res) => {
       description,
       instructorId: req.user.userId || req.user.id, // Handle both token formats
       status: 'waiting',
-      classId: classId || null
+      classId: classId || rosterId || null,  // Support both classId and rosterId
+      rosterId: classId || rosterId || null   // Set both for compatibility
     };
     
     // Explicitly set requireLogin with proper boolean conversion
@@ -456,17 +457,18 @@ router.post('/join', async (req, res) => {
     console.log('[Sessions] Login check passed, checking enrollment...');
     
     // Check enrollment restriction
-    if (session.restrictToEnrolled && session.classId && userId) {
-      console.log('[Sessions] Checking enrollment for class:', session.classId);
+    const effectiveClassId = session.classId || session.rosterId;
+    if (session.restrictToEnrolled && effectiveClassId && userId) {
+      console.log('[Sessions] Checking enrollment for class:', effectiveClassId);
       
       // Import the enrollment model
       const ClassEnrollment = require('../models/ClassEnrollment');
       
       // Check if student is enrolled
       const enrollment = await ClassEnrollment.findOne({
-        classId: session.classId,
+        classId: effectiveClassId,
         studentId: userId,
-        status: 'enrolled'
+        status: { $in: ['enrolled', 'pending'] }  // Allow both enrolled and pending students
       });
       
       if (!enrollment) {
@@ -520,12 +522,12 @@ router.post('/join', async (req, res) => {
       
       // Check if enrolled (for tracking purposes)
       let isEnrolled = false;
-      if (session.classId && userId) {
+      if (effectiveClassId && userId) {
         const ClassEnrollment = require('../models/ClassEnrollment');
         const enrollment = await ClassEnrollment.findOne({
-          classId: session.classId,
+          classId: effectiveClassId,
           studentId: userId,
-          status: 'enrolled'
+          status: { $in: ['enrolled', 'pending'] }
         });
         isEnrolled = !!enrollment;
       }

@@ -29,6 +29,12 @@ const sessionSchema = new mongoose.Schema({
     index: true,
     description: 'Optional link to a class for enrollment-based sessions'
   },
+  rosterId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+    required: false,
+    description: 'Alias for classId for backward compatibility'
+  },
   status: {
     type: String,
     enum: ['waiting', 'active', 'ended'],
