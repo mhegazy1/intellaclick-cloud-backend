@@ -339,9 +339,22 @@ router.get('/code/:sessionCode', async (req, res) => {
   });
   
   try {
-    const session = await Session.findOne({ 
-      sessionCode: req.params.sessionCode.toUpperCase() 
-    });
+    const sessionCode = req.params.sessionCode.toUpperCase();
+    
+    // Find ALL sessions with this code (to handle duplicates)
+    const sessions = await Session.find({ sessionCode });
+    console.log(`[Sessions] Found ${sessions.length} sessions with code ${sessionCode}`);
+    
+    if (sessions.length > 1) {
+      console.warn('[Sessions] DUPLICATE SESSIONS FOUND for stats!');
+      sessions.forEach(s => {
+        console.log(`  - ID: ${s._id}, Status: ${s.status}, Created: ${s.createdAt}, Responses: ${s.responses?.length || 0}`);
+      });
+    }
+    
+    // Get the most recent active session or the most recent one
+    const session = sessions.find(s => s.status === 'active') || 
+                   sessions.sort((a, b) => b.createdAt - a.createdAt)[0];
     
     if (!session) {
       return res.status(404).json({ 
@@ -349,6 +362,16 @@ router.get('/code/:sessionCode', async (req, res) => {
         error: 'Session not found' 
       });
     }
+    
+    // Debug logging for response tracking
+    console.log('[Sessions] Getting session stats:', {
+      sessionCode: session.sessionCode,
+      responseArrayExists: !!session.responses,
+      responseCount: session.responses ? session.responses.length : 0,
+      participantCount: session.participants.length,
+      responseSample: session.responses && session.responses.length > 0 ? 
+        `First response: ${JSON.stringify(session.responses[0])}` : 'No responses'
+    });
     
     // Ensure requireLogin is always included in response
     const requireLogin = session.requireLogin === true ? true : false;
