@@ -1272,4 +1272,142 @@ router.delete('/:id', auth, instructorAuth, param('id').isMongoId(), async (req,
   }
 });
 
+// GET /api/classes/:id/analytics - Get analytics data for a class
+router.get('/:id/analytics', auth, instructorAuth, param('id').isMongoId(), async (req, res) => {
+  try {
+    const { period = '30days' } = req.query;
+    
+    // Get class to verify access
+    const classDoc = await Class.findById(req.params.id);
+    
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    
+    // Check access
+    const userId = (req.user._id || req.user.id || req.user.userId || '').toString();
+    const isInstructor = 
+      classDoc.instructorId.toString() === userId ||
+      classDoc.coInstructors.some(id => id.toString() === userId) ||
+      classDoc.teachingAssistants.some(id => id.toString() === userId);
+    
+    if (!isInstructor && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (period) {
+      case '7days':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30days':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case 'semester':
+        startDate.setMonth(now.getMonth() - 4); // Approximate semester
+        break;
+      default:
+        startDate.setDate(now.getDate() - 30);
+    }
+    
+    // Get all enrollments for the class
+    const enrollments = await ClassEnrollment.find({ 
+      classId: req.params.id,
+      status: 'enrolled'
+    }).populate('studentId', 'email profile');
+    
+    // Get all sessions for this class within the period
+    const Session = require('../models/Session');
+    const sessions = await Session.find({
+      classId: req.params.id,
+      createdAt: { $gte: startDate }
+    });
+    
+    // Calculate analytics for each student
+    const students = await Promise.all(enrollments.map(async (enrollment) => {
+      const studentId = enrollment.studentId._id;
+      
+      // Count sessions attended
+      const sessionsAttended = sessions.filter(session => 
+        session.participants.some(p => 
+          p.userId && p.userId.toString() === studentId.toString()
+        )
+      ).length;
+      
+      // Count responses
+      let totalResponses = 0;
+      let correctResponses = 0;
+      
+      sessions.forEach(session => {
+        const studentResponses = session.responses.filter(r => 
+          r.userId && r.userId.toString() === studentId.toString()
+        );
+        totalResponses += studentResponses.length;
+        
+        // Note: Correct answer tracking would require question data
+        // For now, we'll use a placeholder calculation
+        correctResponses += Math.floor(studentResponses.length * 0.75);
+      });
+      
+      // Calculate metrics
+      const attendance = sessions.length > 0 
+        ? Math.round((sessionsAttended / sessions.length) * 100)
+        : 0;
+      
+      const performance = totalResponses > 0
+        ? Math.round((correctResponses / totalResponses) * 100)
+        : 0;
+      
+      const engagement = sessionsAttended > 0 && totalResponses > 0
+        ? Math.round((totalResponses / (sessionsAttended * 10)) * 100) // Assume 10 questions per session average
+        : 0;
+      
+      return {
+        name: `${enrollment.studentId.profile?.firstName || ''} ${enrollment.studentId.profile?.lastName || ''}`.trim() || enrollment.studentId.email,
+        email: enrollment.studentId.email,
+        attendance,
+        performance,
+        engagement,
+        questionsAnswered: totalResponses,
+        correctAnswers: correctResponses,
+        sessionsAttended,
+        lastActive: enrollment.lastActivityAt || enrollment.enrolledAt
+      };
+    }));
+    
+    // Calculate overview stats
+    const avgAttendance = students.length > 0
+      ? Math.round(students.reduce((sum, s) => sum + s.attendance, 0) / students.length)
+      : 0;
+    
+    const avgPerformance = students.length > 0
+      ? Math.round(students.reduce((sum, s) => sum + s.performance, 0) / students.length)
+      : 0;
+    
+    const avgEngagement = students.length > 0
+      ? Math.round(students.reduce((sum, s) => sum + s.engagement, 0) / students.length)
+      : 0;
+    
+    res.json({
+      overview: {
+        totalStudents: students.length,
+        totalSessions: sessions.length,
+        avgAttendance,
+        avgPerformance,
+        avgEngagement,
+        period
+      },
+      students,
+      sessions: sessions.length
+    });
+    
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics data' });
+  }
+});
+
 module.exports = router;

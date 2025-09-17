@@ -697,6 +697,18 @@ router.delete('/:enrollmentId', auth, instructorAuth, [
       return res.status(403).json({ error: 'Access denied' });
     }
     
+    // If student is already dropped or withdrawn, permanently delete the enrollment
+    if (enrollment.status === 'dropped' || enrollment.status === 'withdrawn') {
+      await enrollment.remove();
+      await classDoc.updateEnrollmentStats();
+      
+      return res.json({
+        success: true,
+        message: 'Student permanently removed from class roster'
+      });
+    }
+    
+    // Otherwise, change status to withdrawn
     enrollment.status = 'withdrawn';
     enrollment.withdrawnAt = new Date();
     enrollment.withdrawnBy = req.user.id;
