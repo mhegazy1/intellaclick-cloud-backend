@@ -1224,19 +1224,38 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
       responseCount: session.responses?.length || 0
     });
     
-    // Store response
-    const response = {
-      userId: req.user?.userId || null,  // Handle unauthenticated users
-      participantId: req.body.participantId || `anon_${Date.now()}`,
-      questionId,
-      answer,
-      submittedAt: new Date()
-    };
+    // Check for duplicate submission
+    const participantId = req.body.participantId || req.user?.userId || `anon_${Date.now()}`;
     
     // Initialize responses array if it doesn't exist
     if (!session.responses) {
       session.responses = [];
     }
+    
+    // Check if this participant already answered this question
+    const existingResponse = session.responses.find(r => 
+      r.participantId === participantId && 
+      r.questionId === questionId
+    );
+    
+    if (existingResponse) {
+      console.log('[Sessions] Duplicate response detected, returning existing response');
+      return res.json({ 
+        success: true, 
+        message: 'Response already recorded',
+        responseId: existingResponse._id,
+        isDuplicate: true
+      });
+    }
+    
+    // Store response
+    const response = {
+      userId: req.user?.userId || null,  // Handle unauthenticated users
+      participantId: participantId,
+      questionId,
+      answer,
+      submittedAt: new Date()
+    };
     
     console.log('[Sessions] Adding response to session');
     session.responses.push(response);
