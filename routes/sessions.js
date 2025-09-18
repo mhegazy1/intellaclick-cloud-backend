@@ -218,8 +218,18 @@ router.post('/', auth, async (req, res) => {
     // Explicitly set requireLogin with proper boolean conversion
     sessionData.requireLogin = requireLogin === true || requireLogin === 'true' || requireLogin === 1 || requireLogin === '1';
     
-    // Set restrictToEnrolled (default to true if not specified)
-    sessionData.restrictToEnrolled = restrictToEnrolled !== false && restrictToEnrolled !== 'false';
+    // Set restrictToEnrolled based on the provided setting
+    // Note: restrictToEnrolled can be true even without a specific classId
+    // This would restrict to students enrolled in ANY class
+    if (restrictToEnrolled !== undefined) {
+      sessionData.restrictToEnrolled = restrictToEnrolled === true || restrictToEnrolled === 'true' || restrictToEnrolled === 1 || restrictToEnrolled === '1';
+    } else if (sessionData.classId) {
+      // If a class is specified and restrictToEnrolled not explicitly set, default to true
+      sessionData.restrictToEnrolled = true;
+    } else {
+      // If no class is specified and restrictToEnrolled not set, default to false
+      sessionData.restrictToEnrolled = false;
+    }
     
     console.log('[Sessions] Creating session with data:', JSON.stringify(sessionData, null, 2));
     
@@ -458,29 +468,77 @@ router.post('/join', async (req, res) => {
     
     // Check enrollment restriction
     const effectiveClassId = session.classId || session.rosterId;
-    if (session.restrictToEnrolled && effectiveClassId && userId) {
-      console.log('[Sessions] Checking enrollment for class:', effectiveClassId);
-      
+    console.log('[Sessions] Enrollment check:', {
+      restrictToEnrolled: session.restrictToEnrolled,
+      effectiveClassId: effectiveClassId,
+      userId: userId,
+      willCheck: session.restrictToEnrolled && effectiveClassId && userId
+    });
+    
+    if (session.restrictToEnrolled && userId) {
       // Import the enrollment model
       const ClassEnrollment = require('../models/ClassEnrollment');
       
-      // Check if student is enrolled
-      const enrollment = await ClassEnrollment.findOne({
-        classId: effectiveClassId,
-        studentId: userId,
-        status: { $in: ['enrolled', 'pending'] }  // Allow both enrolled and pending students
-      });
+      let enrollment;
+      
+      if (effectiveClassId) {
+        // Check enrollment for specific class
+        console.log('[Sessions] Checking enrollment for specific class:', effectiveClassId);
+        
+        enrollment = await ClassEnrollment.findOne({
+          classId: effectiveClassId,
+          studentId: userId,
+          status: { $in: ['enrolled', 'pending'] }  // Allow both enrolled and pending students
+        });
+      } else {
+        // Check if student is enrolled in ANY class taught by this instructor
+        console.log('[Sessions] Checking enrollment in ANY class by instructor:', session.instructorId);
+        
+        // First get all classes by this instructor
+        const Class = require('../models/Class');
+        const instructorClasses = await Class.find({ instructorId: session.instructorId });
+        const classIds = instructorClasses.map(c => c._id);
+        
+        console.log('[Sessions] Found instructor classes:', classIds.length);
+        
+        if (classIds.length > 0) {
+          enrollment = await ClassEnrollment.findOne({
+            classId: { $in: classIds },
+            studentId: userId,
+            status: { $in: ['enrolled', 'pending'] }
+          });
+        }
+      }
+      
+      console.log('[Sessions] Enrollment search result:', enrollment ? 'Found' : 'Not found');
       
       if (!enrollment) {
-        console.log('[Sessions] Student not enrolled in class - rejecting join');
+        const message = effectiveClassId 
+          ? 'You must be enrolled in this class to join the session.'
+          : 'You must be enrolled in at least one of the instructor\'s classes to join this session.';
+          
+        console.log('[Sessions] Student not enrolled - rejecting join');
         return res.status(403).json({
           success: false,
-          error: 'Not enrolled in class',
-          message: 'You must be enrolled in this class to join the session.'
+          error: 'Not enrolled',
+          message: message
         });
       }
       
       console.log('[Sessions] Student is enrolled, allowing join');
+    } else if (session.restrictToEnrolled && !userId) {
+      console.log('[Sessions] Session restricted but no userId - requiring login');
+      return res.status(401).json({
+        success: false,
+        error: 'Login required',
+        requireLogin: true,
+        message: 'You must be logged in to join this restricted session.'
+      });
+    } else {
+      console.log('[Sessions] Skipping enrollment check:', {
+        restrictToEnrolled: session.restrictToEnrolled,
+        hasUserId: !!userId
+      });
     }
     
     // Initialize participants array if it doesn't exist
@@ -522,14 +580,32 @@ router.post('/join', async (req, res) => {
       
       // Check if enrolled (for tracking purposes)
       let isEnrolled = false;
-      if (effectiveClassId && userId) {
+      if (userId) {
         const ClassEnrollment = require('../models/ClassEnrollment');
-        const enrollment = await ClassEnrollment.findOne({
-          classId: effectiveClassId,
-          studentId: userId,
-          status: { $in: ['enrolled', 'pending'] }
-        });
-        isEnrolled = !!enrollment;
+        
+        if (effectiveClassId) {
+          // Check enrollment in specific class
+          const enrollment = await ClassEnrollment.findOne({
+            classId: effectiveClassId,
+            studentId: userId,
+            status: { $in: ['enrolled', 'pending'] }
+          });
+          isEnrolled = !!enrollment;
+        } else {
+          // Check enrollment in any instructor's class
+          const Class = require('../models/Class');
+          const instructorClasses = await Class.find({ instructorId: session.instructorId });
+          const classIds = instructorClasses.map(c => c._id);
+          
+          if (classIds.length > 0) {
+            const enrollment = await ClassEnrollment.findOne({
+              classId: { $in: classIds },
+              studentId: userId,
+              status: { $in: ['enrolled', 'pending'] }
+            });
+            isEnrolled = !!enrollment;
+          }
+        }
       }
       
       // Add new participant to session
