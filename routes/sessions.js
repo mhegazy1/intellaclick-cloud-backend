@@ -1034,6 +1034,51 @@ router.post('/:id/questions', auth, async (req, res) => {
   }
 });
 
+// Update question timer
+router.post('/:id/questions/:questionId/timer', auth, async (req, res) => {
+  try {
+    const { addSeconds } = req.body;
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Verify the instructor owns this session
+    if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    // Update current question time limit if it exists
+    if (session.currentQuestion && session.currentQuestion.timeLimit) {
+      console.log('[Sessions] Adding time to question:', {
+        currentTimeLimit: session.currentQuestion.timeLimit,
+        addSeconds: addSeconds,
+        newTimeLimit: session.currentQuestion.timeLimit + addSeconds
+      });
+      
+      session.currentQuestion.timeLimit += addSeconds;
+      session.markModified('currentQuestion');
+      await session.save();
+      
+      res.json({
+        success: true,
+        message: 'Timer updated',
+        newTimeLimit: session.currentQuestion.timeLimit
+      });
+    } else {
+      res.status(400).json({ 
+        success: false, 
+        error: 'No active question to update' 
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error updating timer:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // End current question
 router.post('/:id/questions/:questionId/end', auth, async (req, res) => {
   try {
