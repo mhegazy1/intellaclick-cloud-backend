@@ -1301,7 +1301,7 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     });
     
     // Check for duplicate submission
-    const participantId = req.body.participantId || req.user?.userId || `anon_${Date.now()}`;
+    const effectiveParticipantId = participantId || req.user?.userId || `anon_${Date.now()}`;
     
     // Initialize responses array if it doesn't exist
     if (!session.responses) {
@@ -1310,7 +1310,7 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     
     // Check if this participant already answered this question
     const existingResponse = session.responses.find(r => 
-      r.participantId === participantId && 
+      r.participantId === effectiveParticipantId && 
       r.questionId === questionId
     );
     
@@ -1327,7 +1327,7 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     // Store response
     const response = {
       userId: req.user?.userId || null,  // Handle unauthenticated users
-      participantId: participantId,
+      participantId: effectiveParticipantId,
       questionId,
       answer,
       submittedAt: new Date()
