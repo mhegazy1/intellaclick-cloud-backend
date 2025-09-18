@@ -178,7 +178,7 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled } = req.body;
+    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange } = req.body;
     
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
@@ -186,6 +186,7 @@ router.post('/', auth, async (req, res) => {
     console.log('[Sessions] - requireLogin:', requireLogin);
     console.log('[Sessions] - classId:', classId);
     console.log('[Sessions] - restrictToEnrolled:', restrictToEnrolled);
+    console.log('[Sessions] - allowAnswerChange:', allowAnswerChange);
     console.log('[Sessions] - User:', req.user);
     
     // Check if session code already exists
@@ -231,6 +232,9 @@ router.post('/', auth, async (req, res) => {
       sessionData.restrictToEnrolled = false;
     }
     
+    // Set allowAnswerChange with proper boolean conversion
+    sessionData.allowAnswerChange = allowAnswerChange === true || allowAnswerChange === 'true' || allowAnswerChange === 1 || allowAnswerChange === '1';
+    
     console.log('[Sessions] Creating session with data:', JSON.stringify(sessionData, null, 2));
     
     const session = new Session(sessionData);
@@ -270,6 +274,7 @@ router.post('/', auth, async (req, res) => {
         status: session.status,
         requireLogin: session.requireLogin,
         restrictToEnrolled: session.restrictToEnrolled,
+        allowAnswerChange: session.allowAnswerChange,
         classId: session.classId,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
       }
@@ -401,6 +406,7 @@ router.get('/code/:sessionCode', async (req, res) => {
         questionCount: session.questionsSent ? session.questionsSent.length : 0,
         requireLogin: requireLogin,
         restrictToEnrolled: session.restrictToEnrolled,
+        allowAnswerChange: session.allowAnswerChange,
         classId: session.classId
       }
     });
@@ -1309,19 +1315,36 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     }
     
     // Check if this participant already answered this question
-    const existingResponse = session.responses.find(r => 
+    const existingResponseIndex = session.responses.findIndex(r => 
       r.participantId === effectiveParticipantId && 
       r.questionId === questionId
     );
     
-    if (existingResponse) {
-      console.log('[Sessions] Duplicate response detected, returning existing response');
-      return res.json({ 
-        success: true, 
-        message: 'Response already recorded',
-        responseId: existingResponse._id,
-        isDuplicate: true
-      });
+    if (existingResponseIndex !== -1) {
+      if (session.allowAnswerChange) {
+        // Allow answer change - update the existing response
+        console.log('[Sessions] Answer change allowed, updating existing response');
+        session.responses[existingResponseIndex].answer = answer;
+        session.responses[existingResponseIndex].submittedAt = new Date();
+        
+        await session.save();
+        
+        return res.json({ 
+          success: true, 
+          message: 'Answer updated successfully',
+          responseId: session.responses[existingResponseIndex]._id,
+          isUpdate: true
+        });
+      } else {
+        // Answer change not allowed
+        console.log('[Sessions] Duplicate response detected, answer change not allowed');
+        return res.json({ 
+          success: true, 
+          message: 'Response already recorded',
+          responseId: session.responses[existingResponseIndex]._id,
+          isDuplicate: true
+        });
+      }
     }
     
     // Store response

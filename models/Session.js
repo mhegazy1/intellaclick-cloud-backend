@@ -52,6 +52,12 @@ const sessionSchema = new mongoose.Schema({
     required: false,
     description: 'Whether only enrolled students can join this session'
   },
+  allowAnswerChange: {
+    type: Boolean,
+    default: false,
+    required: false,
+    description: 'Whether students can change their answer while the question is still active'
+  },
   currentQuestion: {
     questionId: String,
     questionText: String,
