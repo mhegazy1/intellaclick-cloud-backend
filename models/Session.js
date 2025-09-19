@@ -115,6 +115,64 @@ const sessionSchema = new mongoose.Schema({
     className: String,
     classCode: String
   },
+  gamification: {
+    enabled: {
+      type: Boolean,
+      default: false,
+      description: 'Master switch for gamification features'
+    },
+    features: {
+      points: {
+        enabled: { type: Boolean, default: true },
+        basePoints: { type: Number, default: 10 },
+        speedBonus: { type: Boolean, default: true },
+        maxSpeedBonus: { type: Number, default: 5 }
+      },
+      leaderboard: {
+        enabled: { type: Boolean, default: true },
+        displayDuring: { type: Boolean, default: false }, // Show during questions
+        displayAfter: { type: Boolean, default: true },   // Show after questions
+        anonymous: { type: Boolean, default: false },     // Hide real names
+        topN: { type: Number, default: 10 }               // How many to show
+      },
+      achievements: {
+        enabled: { type: Boolean, default: true },
+        showNotifications: { type: Boolean, default: true },
+        categories: {
+          participation: { type: Boolean, default: true },
+          performance: { type: Boolean, default: true },
+          speed: { type: Boolean, default: true },
+          streaks: { type: Boolean, default: true }
+        }
+      },
+      streaks: {
+        enabled: { type: Boolean, default: true },
+        showCount: { type: Boolean, default: true }
+      },
+      teams: {
+        enabled: { type: Boolean, default: false },
+        randomAssignment: { type: Boolean, default: false },
+        teamCount: { type: Number, default: 4 }
+      },
+      badges: {
+        enabled: { type: Boolean, default: true },
+        displayOnProfile: { type: Boolean, default: true }
+      },
+      powerUps: {
+        enabled: { type: Boolean, default: false },
+        doublePoints: { type: Boolean, default: false },
+        extraTime: { type: Boolean, default: false },
+        eliminateOption: { type: Boolean, default: false }
+      }
+    },
+    studentVisibility: {
+      ownPoints: { type: Boolean, default: true },
+      ownRank: { type: Boolean, default: true },
+      otherScores: { type: Boolean, default: true },
+      correctAnswer: { type: Boolean, default: true },
+      detailedFeedback: { type: Boolean, default: true }
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -178,7 +178,7 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange } = req.body;
+    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange, gamification } = req.body;
     
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
@@ -187,6 +187,7 @@ router.post('/', auth, async (req, res) => {
     console.log('[Sessions] - classId:', classId);
     console.log('[Sessions] - restrictToEnrolled:', restrictToEnrolled);
     console.log('[Sessions] - allowAnswerChange:', allowAnswerChange);
+    console.log('[Sessions] - gamification:', JSON.stringify(gamification, null, 2));
     console.log('[Sessions] - User:', req.user);
     
     // Check if session code already exists
@@ -235,6 +236,11 @@ router.post('/', auth, async (req, res) => {
     // Set allowAnswerChange with proper boolean conversion
     sessionData.allowAnswerChange = allowAnswerChange === true || allowAnswerChange === 'true' || allowAnswerChange === 1 || allowAnswerChange === '1';
     
+    // Add gamification settings if provided
+    if (gamification) {
+      sessionData.gamification = gamification;
+    }
+    
     console.log('[Sessions] Creating session with data:', JSON.stringify(sessionData, null, 2));
     
     const session = new Session(sessionData);
@@ -276,6 +282,7 @@ router.post('/', auth, async (req, res) => {
         restrictToEnrolled: session.restrictToEnrolled,
         allowAnswerChange: session.allowAnswerChange,
         classId: session.classId,
+        gamification: session.gamification,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
       }
     });
