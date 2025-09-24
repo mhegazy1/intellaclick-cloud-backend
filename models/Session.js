@@ -63,11 +63,23 @@ const sessionSchema = new mongoose.Schema({
     questionText: String,
     questionType: String,
     options: [String],
-    correctAnswer: String,
+    correctAnswer: mongoose.Schema.Types.Mixed, // Changed from String to Mixed
     points: { type: Number, default: 10 },
     timeLimit: { type: Number, default: 30 },
     startedAt: Date
   },
+  // NEW: Track all questions asked in the session for scoring
+  questions: [{
+    questionId: String,
+    questionText: String,
+    questionType: String,
+    options: [String],
+    correctAnswer: mongoose.Schema.Types.Mixed, // Can be string, number, or boolean
+    points: { type: Number, default: 10 },
+    timeLimit: { type: Number, default: 30 },
+    startedAt: Date,
+    endedAt: Date
+  }],
   participants: [{
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -91,10 +103,15 @@ const sessionSchema = new mongoose.Schema({
     participantId: String,
     userId: mongoose.Schema.Types.ObjectId,
     answer: mongoose.Schema.Types.Mixed,
+    timeSpent: Number, // NEW: Track time spent
     submittedAt: {
       type: Date,
       default: Date.now
-    }
+    },
+    // NEW: Store question context for scoring
+    questionText: String,
+    questionType: String,
+    correctAnswer: mongoose.Schema.Types.Mixed
   }],
   questionsSent: [{
     questionId: String,
@@ -110,6 +127,20 @@ const sessionSchema = new mongoose.Schema({
   },
   startedAt: Date,
   endedAt: Date,
+  // NEW: Gamification settings
+  gamification: {
+    enabled: { type: Boolean, default: false },
+    features: {
+      points: {
+        enabled: { type: Boolean, default: true },
+        speedBonus: { type: Boolean, default: true }
+      },
+      leaderboard: {
+        enabled: { type: Boolean, default: true },
+        anonymous: { type: Boolean, default: false }
+      }
+    }
+  },
   metadata: {
     platform: { type: String, enum: ['powerpoint', 'standalone', 'web'], default: 'web' },
     className: String,

@@ -979,7 +979,10 @@ router.post('/:id/questions', auth, async (req, res) => {
     
     console.log('[Sessions] Normalized question:', {
       hasQuestionText: !!question.questionText,
-      questionText: question.questionText.substring(0, 50) + '...'
+      questionText: question.questionText.substring(0, 50) + '...',
+      hasCorrectAnswer: question.correctAnswer !== undefined && question.correctAnswer !== null,
+      correctAnswer: question.correctAnswer,
+      questionType: question.questionType
     });
     
     // Set as current question
@@ -991,6 +994,21 @@ router.post('/:id/questions', auth, async (req, res) => {
       questionId: question.questionId,
       questionText: question.questionText,
       sentAt: new Date()
+    });
+    
+    // NEW: Also track in questions array for scoring
+    if (!session.questions) {
+      session.questions = [];
+    }
+    session.questions.push({
+      questionId: question.questionId,
+      questionText: question.questionText,
+      questionType: question.questionType,
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+      points: question.points,
+      timeLimit: question.timeLimit,
+      startedAt: question.startedAt
     });
     
     // Update total questions count
@@ -1392,14 +1410,42 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
       }
     }
     
-    // Store response
+    // Get question context for scoring
+    let questionContext = {};
+    if (session.currentQuestion && session.currentQuestion.questionId === questionId) {
+      questionContext = {
+        questionText: session.currentQuestion.questionText,
+        questionType: session.currentQuestion.questionType,
+        correctAnswer: session.currentQuestion.correctAnswer
+      };
+    } else if (session.questions) {
+      // Look for question in the questions array
+      const question = session.questions.find(q => q.questionId === questionId);
+      if (question) {
+        questionContext = {
+          questionText: question.questionText,
+          questionType: question.questionType,
+          correctAnswer: question.correctAnswer
+        };
+      }
+    }
+
+    // Store response with context
     const response = {
       userId: req.user?.userId || null,  // Handle unauthenticated users
       participantId: effectiveParticipantId,
       questionId,
       answer,
-      submittedAt: new Date()
+      timeSpent: timeSpent || 0,
+      submittedAt: new Date(),
+      ...questionContext  // Include question context for scoring
     };
+    
+    console.log('[Sessions] Response recorded:', {
+      questionId,
+      hasCorrectAnswer: response.correctAnswer !== undefined,
+      correctAnswer: response.correctAnswer
+    });
     
     console.log('[Sessions] Adding response to session');
     session.responses.push(response);
@@ -1487,6 +1533,239 @@ router.post('/cleanup-duplicates', async (req, res) => {
     
   } catch (error) {
     console.error('Cleanup error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get session results with proper scoring (for instructors)
+router.get('/:id/results', auth, async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Verify the instructor owns this session
+    if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    console.log('[Sessions] Getting results for session:', session.sessionCode);
+    console.log('[Sessions] Session has', session.responses?.length || 0, 'responses');
+    console.log('[Sessions] Session has', session.questions?.length || 0, 'questions');
+    
+    // Build a map of questions that were asked
+    const questionsAsked = new Map();
+    
+    // If we track questions in a separate array (recommended)
+    if (session.questions && session.questions.length > 0) {
+      session.questions.forEach(q => {
+        questionsAsked.set(q.questionId, {
+          questionId: q.questionId,
+          questionText: q.questionText,
+          questionType: q.questionType,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          timeLimit: q.timeLimit,
+          points: q.points || 10,
+          startedAt: q.startedAt
+        });
+      });
+    }
+    
+    // Also check current question if session is still active
+    if (session.currentQuestion && session.currentQuestion.questionId) {
+      const q = session.currentQuestion;
+      questionsAsked.set(q.questionId, {
+        questionId: q.questionId,
+        questionText: q.questionText,
+        questionType: q.questionType,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        timeLimit: q.timeLimit,
+        points: q.points || 10,
+        startedAt: q.startedAt
+      });
+    }
+    
+    // Process responses and calculate results
+    const questionResults = [];
+    let totalResponses = 0;
+    let totalCorrect = 0;
+    
+    // Group responses by question
+    const responsesByQuestion = new Map();
+    
+    if (session.responses && session.responses.length > 0) {
+      session.responses.forEach(response => {
+        if (!responsesByQuestion.has(response.questionId)) {
+          responsesByQuestion.set(response.questionId, []);
+        }
+        responsesByQuestion.get(response.questionId).push(response);
+      });
+    }
+    
+    console.log('[Sessions] Processing', responsesByQuestion.size, 'questions with responses');
+    
+    // Calculate results for each question
+    questionsAsked.forEach((question, questionId) => {
+      const responses = responsesByQuestion.get(questionId) || [];
+      let correctCount = 0;
+      
+      console.log(`[Sessions] Question ${questionId}:`, {
+        text: question.questionText?.substring(0, 50),
+        type: question.questionType,
+        correctAnswer: question.correctAnswer,
+        responseCount: responses.length
+      });
+      
+      // Process each response
+      const processedResponses = responses.map(response => {
+        let isCorrect = false;
+        
+        // Only calculate if correct answer is defined
+        if (question.correctAnswer !== undefined && question.correctAnswer !== null) {
+          const questionType = question.questionType || question.type || 'multiple_choice';
+          
+          if (questionType === 'multiple_choice' || questionType === 'multiple-choice') {
+            // For multiple choice, compare as strings to handle type mismatches
+            const userAnswer = String(response.answer).trim();
+            const correctAnswer = String(question.correctAnswer).trim();
+            isCorrect = userAnswer === correctAnswer;
+            
+            console.log(`[Sessions] MC comparison: "${userAnswer}" === "${correctAnswer}" = ${isCorrect}`);
+          } else if (questionType === 'true_false' || questionType === 'true-false') {
+            // For true/false, normalize to lowercase strings
+            const userAnswer = String(response.answer).toLowerCase().trim();
+            const correctAnswer = String(question.correctAnswer).toLowerCase().trim();
+            
+            // Handle various true/false formats
+            const normalizeBoolean = (val) => {
+              if (['true', 't', '1', 'yes'].includes(val)) return 'true';
+              if (['false', 'f', '0', 'no'].includes(val)) return 'false';
+              return val;
+            };
+            
+            isCorrect = normalizeBoolean(userAnswer) === normalizeBoolean(correctAnswer);
+            
+            console.log(`[Sessions] TF comparison: "${userAnswer}" === "${correctAnswer}" = ${isCorrect}`);
+          }
+        }
+        
+        if (isCorrect) correctCount++;
+        
+        // Find participant name
+        const participant = session.participants.find(p => 
+          p.participantId === response.participantId || 
+          p.userId === response.userId
+        );
+        
+        return {
+          participantId: response.participantId,
+          participantName: participant?.name || 'Anonymous',
+          answer: response.answer,
+          isCorrect: isCorrect,
+          points: isCorrect ? (question.points || 10) : 0,
+          timeSpent: response.timeSpent,
+          submittedAt: response.submittedAt
+        };
+      });
+      
+      totalResponses += responses.length;
+      totalCorrect += correctCount;
+      
+      questionResults.push({
+        questionId: question.questionId,
+        questionText: question.questionText,
+        type: question.questionType,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        results: {
+          totalResponses: responses.length,
+          correctCount: correctCount,
+          responses: processedResponses,
+          averageTime: responses.reduce((sum, r) => sum + (r.timeSpent || 0), 0) / responses.length || 0
+        }
+      });
+    });
+    
+    // Calculate overall statistics
+    const hasCorrectAnswers = questionResults.some(qr => 
+      qr.correctAnswer !== undefined && qr.correctAnswer !== null
+    );
+    
+    const averageScore = hasCorrectAnswers && totalResponses > 0 
+      ? ((totalCorrect / totalResponses) * 100).toFixed(1) 
+      : (hasCorrectAnswers ? '0.0' : 'N/A');
+      
+    const totalQuestions = questionResults.length;
+    const totalParticipants = session.participants.length;
+    
+    const completionRate = totalQuestions > 0 && totalParticipants > 0
+      ? ((totalResponses / (totalQuestions * totalParticipants)) * 100).toFixed(1)
+      : '0.0';
+    
+    console.log('[Sessions] Results calculated:', {
+      totalQuestions,
+      totalParticipants,
+      totalResponses,
+      totalCorrect,
+      averageScore
+    });
+    
+    res.json({
+      sessionId: session._id,
+      sessionCode: session.sessionCode,
+      sessionTitle: session.title,
+      startTime: session.createdAt,
+      totalParticipants: totalParticipants,
+      totalResponses: totalResponses,
+      correctResponses: totalCorrect,
+      incorrectResponses: totalResponses - totalCorrect,
+      averageScore: averageScore,
+      overallAccuracy: averageScore, // For compatibility
+      completionRate: completionRate,
+      questionResults: questionResults,
+      gamification: session.gamification || {
+        enabled: false
+      }
+    });
+    
+  } catch (error) {
+    console.error('[Sessions] Error getting session results:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get results by session code (for desktop app compatibility)
+router.get('/code/:sessionCode/results', async (req, res) => {
+  try {
+    const sessionCode = req.params.sessionCode.toUpperCase();
+    
+    // Find the session
+    const session = await Session.findOne({ sessionCode });
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Use the main results endpoint logic
+    req.params.id = session._id.toString();
+    req.user = { userId: session.instructorId.toString() }; // Allow access for session code
+    
+    // Call the results endpoint
+    return router.handle(req, res, () => {
+      const resultHandler = router.stack.find(r => 
+        r.route && r.route.path === '/:id/results' && r.route.methods.get
+      );
+      if (resultHandler) {
+        return resultHandler.handle(req, res);
+      }
+      res.status(404).json({ error: 'Results handler not found' });
+    });
+  } catch (error) {
+    console.error('[Sessions] Error getting results by code:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
