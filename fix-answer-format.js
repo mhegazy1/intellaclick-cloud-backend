@@ -10,15 +10,13 @@ function indexToLetter(index) {
 }
 
 // Function to normalize answer format
-function normalizeCorrectAnswer(correctAnswer, questionType) {
+function normalizeCorrectAnswer(correctAnswer, questionType, options) {
   // For multiple choice questions
   if (questionType === 'multiple_choice' || questionType === 'multiple-choice') {
-    // If it's a numeric index (0, 1, 2, 3), convert to letter
+    // If it's a numeric index, just return it as-is
+    // We'll handle the comparison logic in the results endpoint
     if (typeof correctAnswer === 'number' || /^\d+$/.test(correctAnswer)) {
-      const index = parseInt(correctAnswer);
-      if (index >= 0 && index <= 25) { // Support up to 26 options (A-Z)
-        return indexToLetter(index);
-      }
+      return parseInt(correctAnswer);
     }
   }
   

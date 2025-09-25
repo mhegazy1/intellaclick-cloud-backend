@@ -1631,10 +1631,28 @@ router.get('/:id/results', auth, async (req, res) => {
           const questionType = question.questionType || question.type || 'multiple_choice';
           
           if (questionType === 'multiple_choice' || questionType === 'multiple-choice') {
-            // For multiple choice, compare as strings to handle type mismatches
+            // For multiple choice, handle different answer formats
             const userAnswer = String(response.answer).trim();
             const correctAnswer = String(question.correctAnswer).trim();
+            
+            // Direct comparison first
             isCorrect = userAnswer === correctAnswer;
+            
+            // If not correct and user submitted a letter (A, B, C, etc.)
+            if (!isCorrect && /^[A-Z]$/i.test(userAnswer) && question.options) {
+              // Convert letter to index (A=0, B=1, etc.)
+              const letterIndex = userAnswer.toUpperCase().charCodeAt(0) - 65;
+              
+              // Check if correctAnswer is numeric index
+              if (/^\d+$/.test(correctAnswer)) {
+                const correctIndex = parseInt(correctAnswer);
+                isCorrect = letterIndex === correctIndex;
+              }
+              // Check if correctAnswer is the option text at that index
+              else if (letterIndex >= 0 && letterIndex < question.options.length) {
+                isCorrect = question.options[letterIndex] === correctAnswer;
+              }
+            }
             
             console.log(`[Sessions] MC comparison: "${userAnswer}" === "${correctAnswer}" = ${isCorrect}`);
           } else if (questionType === 'true_false' || questionType === 'true-false') {
