@@ -1905,4 +1905,172 @@ router.get('/code/:sessionCode/results', async (req, res) => {
   }
 });
 
+// End session endpoint that calculates and returns final results
+router.post('/:id/end', auth, async (req, res) => {
+  try {
+    console.log('[Sessions] End session endpoint called for ID:', req.params.id);
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    
+    // Verify the instructor owns this session
+    if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    // Update session status to ended
+    session.status = 'ended';
+    session.endedAt = new Date();
+    session.currentQuestion = null;
+    
+    console.log('[Sessions] Ending session:', {
+      code: session.sessionCode,
+      responsesCount: session.responses?.length || 0,
+      questionsCount: session.questions?.length || 0
+    });
+    
+    // Calculate results before saving
+    let totalResponses = 0;
+    let totalCorrect = 0;
+    let questionResults = [];
+    
+    // First, try to use the questions array if available
+    if (session.questions && session.questions.length > 0) {
+      console.log('[Sessions] Calculating results from questions array');
+      
+      session.questions.forEach(question => {
+        const questionResponses = session.responses.filter(r => 
+          r.questionId === question.questionId
+        );
+        
+        let correctCount = 0;
+        questionResponses.forEach(response => {
+          const userAnswer = String(response.answer).toLowerCase().trim();
+          let isCorrect = false;
+          
+          if (question.questionType === 'multiple_choice' || question.questionType === 'multiple-choice') {
+            // Handle multiple choice - compare with correct answer
+            const correctAnswer = String(question.correctAnswer).trim();
+            
+            // If correct answer is numeric (0,1,2), also check against letter conversion
+            if (/^\d+$/.test(correctAnswer)) {
+              const correctIndex = parseInt(correctAnswer);
+              const correctLetter = String.fromCharCode(65 + correctIndex); // A, B, C
+              
+              // Check if user answered with index, letter, or option text
+              isCorrect = userAnswer === correctAnswer || 
+                         userAnswer === correctLetter.toLowerCase() ||
+                         (question.options && question.options[correctIndex] && 
+                          userAnswer === String(question.options[correctIndex].text || question.options[correctIndex]).toLowerCase());
+            } else {
+              // Direct comparison
+              isCorrect = userAnswer === correctAnswer.toLowerCase();
+            }
+          } else if (question.questionType === 'true_false' || question.questionType === 'true-false') {
+            const correctBool = String(question.correctAnswer).toLowerCase();
+            isCorrect = userAnswer === correctBool;
+          }
+          
+          if (isCorrect) correctCount++;
+        });
+        
+        totalResponses += questionResponses.length;
+        totalCorrect += correctCount;
+        
+        questionResults.push({
+          questionId: question.questionId,
+          totalResponses: questionResponses.length,
+          correctCount: correctCount
+        });
+      });
+    } else {
+      // Fallback: calculate from responses that have embedded correct answers
+      console.log('[Sessions] Calculating results from embedded response data');
+      
+      const responsesByQuestion = {};
+      session.responses.forEach(response => {
+        if (!responsesByQuestion[response.questionId]) {
+          responsesByQuestion[response.questionId] = [];
+        }
+        responsesByQuestion[response.questionId].push(response);
+      });
+      
+      Object.entries(responsesByQuestion).forEach(([questionId, responses]) => {
+        let correctCount = 0;
+        
+        responses.forEach(response => {
+          if (response.correctAnswer !== undefined && response.correctAnswer !== null) {
+            const userAnswer = String(response.answer).toLowerCase().trim();
+            const correctAnswer = String(response.correctAnswer).toLowerCase().trim();
+            
+            if (userAnswer === correctAnswer) {
+              correctCount++;
+            }
+          }
+        });
+        
+        totalResponses += responses.length;
+        totalCorrect += correctCount;
+        
+        questionResults.push({
+          questionId: questionId,
+          totalResponses: responses.length,
+          correctCount: correctCount
+        });
+      });
+    }
+    
+    // Calculate final statistics
+    const averageScore = totalResponses > 0 
+      ? ((totalCorrect / totalResponses) * 100).toFixed(1)
+      : '0.0';
+      
+    const totalParticipants = session.participants.length;
+    const totalQuestions = session.totalQuestions || session.questions?.length || session.questionsSent?.length || 0;
+    
+    console.log('[Sessions] Final results calculated:', {
+      totalResponses,
+      totalCorrect,
+      averageScore,
+      totalParticipants,
+      totalQuestions
+    });
+    
+    // Save the session
+    await session.save();
+    
+    // Return comprehensive results
+    res.json({
+      success: true,
+      session: {
+        _id: session._id,
+        id: session._id,
+        sessionCode: session.sessionCode,
+        title: session.title,
+        status: session.status,
+        startedAt: session.startedAt || session.createdAt,
+        endedAt: session.endedAt,
+        totalQuestions: totalQuestions,
+        totalParticipants: totalParticipants,
+        totalResponses: totalResponses,
+        correctResponses: totalCorrect,
+        incorrectResponses: totalResponses - totalCorrect,
+        averageScore: averageScore,
+        participantCount: totalParticipants,
+        responseCount: totalResponses,
+        questionResults: questionResults,
+        completionRate: totalQuestions > 0 && totalParticipants > 0
+          ? ((totalResponses / (totalQuestions * totalParticipants)) * 100).toFixed(1)
+          : '0.0'
+      }
+    });
+    
+  } catch (error) {
+    console.error('[Sessions] Error ending session:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;
