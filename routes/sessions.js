@@ -1613,6 +1613,23 @@ router.get('/:id/results', auth, async (req, res) => {
       });
     }
     
+    // FALLBACK: If no questions tracked, build from responses (for PowerPoint integration)
+    if (questionsAsked.size === 0 && session.responses && session.responses.length > 0) {
+      console.log('[Sessions] No questions array found, building from responses');
+      session.responses.forEach(response => {
+        if (!questionsAsked.has(response.questionId)) {
+          questionsAsked.set(response.questionId, {
+            questionId: response.questionId,
+            questionText: response.questionText || 'Question ' + response.questionId,
+            questionType: response.questionType || 'multiple_choice',
+            options: response.options || [],
+            correctAnswer: response.correctAnswer,
+            points: response.points || 10
+          });
+        }
+      });
+    }
+    
     // Process responses and calculate results
     const questionResults = [];
     let totalResponses = 0;
