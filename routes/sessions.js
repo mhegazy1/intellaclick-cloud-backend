@@ -1619,6 +1619,8 @@ router.get('/:id/results', auth, async (req, res) => {
         text: question.questionText?.substring(0, 50),
         type: question.questionType,
         correctAnswer: question.correctAnswer,
+        correctAnswerType: typeof question.correctAnswer,
+        options: question.options,
         responseCount: responses.length
       });
       
@@ -1654,7 +1656,13 @@ router.get('/:id/results', auth, async (req, res) => {
               }
             }
             
-            console.log(`[Sessions] MC comparison: "${userAnswer}" === "${correctAnswer}" = ${isCorrect}`);
+            console.log(`[Sessions] MC comparison:`, {
+              userAnswer,
+              correctAnswer,
+              correctAnswerType: typeof correctAnswer,
+              options: question.options,
+              isCorrect
+            });
           } else if (questionType === 'true_false' || questionType === 'true-false') {
             // For true/false, normalize to lowercase strings
             const userAnswer = String(response.answer).toLowerCase().trim();
@@ -1669,7 +1677,13 @@ router.get('/:id/results', auth, async (req, res) => {
             
             isCorrect = normalizeBoolean(userAnswer) === normalizeBoolean(correctAnswer);
             
-            console.log(`[Sessions] TF comparison: "${userAnswer}" === "${correctAnswer}" = ${isCorrect}`);
+            console.log(`[Sessions] TF comparison:`, {
+              userAnswer,
+              correctAnswer,
+              normalizedUser: normalizeBoolean(userAnswer),
+              normalizedCorrect: normalizeBoolean(correctAnswer),
+              isCorrect
+            });
           }
         }
         
