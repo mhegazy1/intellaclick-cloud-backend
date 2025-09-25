@@ -1002,7 +1002,7 @@ router.post('/:id/questions', auth, async (req, res) => {
     if (!session.questions) {
       session.questions = [];
     }
-    session.questions.push({
+    const questionToStore = {
       questionId: question.questionId,
       questionText: question.questionText,
       questionType: question.questionType,
@@ -1011,13 +1011,24 @@ router.post('/:id/questions', auth, async (req, res) => {
       points: question.points,
       timeLimit: question.timeLimit,
       startedAt: question.startedAt
+    };
+    
+    console.log('[Sessions] Storing question in questions array:', {
+      questionId: questionToStore.questionId,
+      questionType: questionToStore.questionType,
+      correctAnswer: questionToStore.correctAnswer,
+      correctAnswerType: typeof questionToStore.correctAnswer,
+      options: questionToStore.options
     });
+    
+    session.questions.push(questionToStore);
     
     // Update total questions count
     session.totalQuestions = session.questionsSent.length;
     
-    // CRITICAL: Mark currentQuestion as modified for Mongoose
+    // CRITICAL: Mark currentQuestion and questions array as modified for Mongoose
     session.markModified('currentQuestion');
+    session.markModified('questions');
     
     // Update session status if needed
     if (session.status === 'waiting') {
@@ -1556,6 +1567,17 @@ router.get('/:id/results', auth, async (req, res) => {
     console.log('[Sessions] Getting results for session:', session.sessionCode);
     console.log('[Sessions] Session has', session.responses?.length || 0, 'responses');
     console.log('[Sessions] Session has', session.questions?.length || 0, 'questions');
+    
+    // Log first question details if available
+    if (session.questions && session.questions.length > 0) {
+      console.log('[Sessions] First question in array:', {
+        questionId: session.questions[0].questionId,
+        questionType: session.questions[0].questionType,
+        correctAnswer: session.questions[0].correctAnswer,
+        correctAnswerType: typeof session.questions[0].correctAnswer,
+        hasOptions: !!session.questions[0].options
+      });
+    }
     
     // Build a map of questions that were asked
     const questionsAsked = new Map();
