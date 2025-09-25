@@ -1553,14 +1553,29 @@ router.post('/cleanup-duplicates', async (req, res) => {
 // Get session results with proper scoring (for instructors)
 router.get('/:id/results', auth, async (req, res) => {
   try {
+    console.log('[Sessions] Results endpoint called for ID:', req.params.id);
+    console.log('[Sessions] User:', req.user);
+    
     const session = await Session.findById(req.params.id);
     
     if (!session) {
+      console.log('[Sessions] Session not found for ID:', req.params.id);
       return res.status(404).json({ success: false, error: 'Session not found' });
     }
     
+    console.log('[Sessions] Found session:', {
+      id: session._id,
+      code: session.sessionCode,
+      instructorId: session.instructorId,
+      questionsCount: session.questions?.length || 0
+    });
+    
     // Verify the instructor owns this session
     if (session.instructorId.toString() !== (req.user.userId || req.user.id)) {
+      console.log('[Sessions] Unauthorized access attempt:', {
+        sessionInstructor: session.instructorId.toString(),
+        requestUser: req.user.userId || req.user.id
+      });
       return res.status(403).json({ success: false, error: 'Unauthorized' });
     }
     
@@ -1616,6 +1631,53 @@ router.get('/:id/results', auth, async (req, res) => {
     // FALLBACK: If no questions tracked, build from responses (for PowerPoint integration)
     if (questionsAsked.size === 0 && session.responses && session.responses.length > 0) {
       console.log('[Sessions] No questions array found, building from responses');
+      
+      // For PowerPoint, we can calculate directly from responses since they contain correct answers
+      let quickTotalResponses = 0;
+      let quickTotalCorrect = 0;
+      
+      session.responses.forEach(response => {
+        quickTotalResponses++;
+        
+        // Compare answer with correctAnswer stored in response
+        if (response.correctAnswer !== undefined && response.correctAnswer !== null) {
+          const userAnswer = String(response.answer).toLowerCase().trim();
+          const correctAnswer = String(response.correctAnswer).toLowerCase().trim();
+          
+          if (userAnswer === correctAnswer) {
+            quickTotalCorrect++;
+          }
+        }
+      });
+      
+      console.log('[Sessions] Quick calculation from responses:', {
+        total: quickTotalResponses,
+        correct: quickTotalCorrect,
+        percentage: quickTotalResponses > 0 ? ((quickTotalCorrect / quickTotalResponses) * 100).toFixed(1) : '0.0'
+      });
+      
+      // If we already have results, just return them
+      if (quickTotalResponses > 0) {
+        const averageScore = ((quickTotalCorrect / quickTotalResponses) * 100).toFixed(1);
+        
+        return res.json({
+          sessionId: session._id,
+          sessionCode: session.sessionCode,
+          sessionTitle: session.title,
+          startTime: session.createdAt,
+          totalParticipants: session.participants.length,
+          totalResponses: quickTotalResponses,
+          correctResponses: quickTotalCorrect,
+          incorrectResponses: quickTotalResponses - quickTotalCorrect,
+          averageScore: averageScore,
+          overallAccuracy: averageScore,
+          completionRate: '100.0',
+          questionResults: [],
+          gamification: session.gamification || { enabled: false }
+        });
+      }
+      
+      // Otherwise continue building questions map for detailed analysis
       session.responses.forEach(response => {
         if (!questionsAsked.has(response.questionId)) {
           questionsAsked.set(response.questionId, {
