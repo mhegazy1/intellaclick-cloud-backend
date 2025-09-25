@@ -966,7 +966,7 @@ router.post('/:id/questions', auth, async (req, res) => {
       questionText: questionText || text,  // Support both field names
       questionType: questionType || type || 'multiple_choice',  // Support both field names
       options,
-      correctAnswer: normalizeCorrectAnswer(correctAnswer, questionType || type || 'multiple_choice'),
+      correctAnswer: normalizeCorrectAnswer(correctAnswer, questionType || type || 'multiple_choice', options),
       points: points || 10,
       timeLimit: timeLimit || 30,
       startedAt: new Date()
