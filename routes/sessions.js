@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
+const { normalizeCorrectAnswer } = require('../fix-answer-format');
 
 // Debug middleware to log all requests to this router
 router.use((req, res, next) => {
@@ -965,7 +966,7 @@ router.post('/:id/questions', auth, async (req, res) => {
       questionText: questionText || text,  // Support both field names
       questionType: questionType || type || 'multiple_choice',  // Support both field names
       options,
-      correctAnswer,
+      correctAnswer: normalizeCorrectAnswer(correctAnswer, questionType || type || 'multiple_choice'),
       points: points || 10,
       timeLimit: timeLimit || 30,
       startedAt: new Date()
@@ -981,7 +982,8 @@ router.post('/:id/questions', auth, async (req, res) => {
       hasQuestionText: !!question.questionText,
       questionText: question.questionText.substring(0, 50) + '...',
       hasCorrectAnswer: question.correctAnswer !== undefined && question.correctAnswer !== null,
-      correctAnswer: question.correctAnswer,
+      originalCorrectAnswer: correctAnswer,
+      normalizedCorrectAnswer: question.correctAnswer,
       questionType: question.questionType
     });
     
