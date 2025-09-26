@@ -2005,7 +2005,15 @@ router.post('/:id/end', auth, async (req, res) => {
             const userAnswer = String(response.answer).toLowerCase().trim();
             const correctAnswer = String(response.correctAnswer).toLowerCase().trim();
             
-            if (userAnswer === correctAnswer) {
+            const isCorrect = userAnswer === correctAnswer;
+            console.log('[Sessions] Fallback scoring:', {
+              questionId: questionId,
+              userAnswer: userAnswer,
+              correctAnswer: correctAnswer,
+              isCorrect: isCorrect
+            });
+            
+            if (isCorrect) {
               correctCount++;
             }
           }
