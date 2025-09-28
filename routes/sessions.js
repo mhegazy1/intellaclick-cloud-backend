@@ -179,7 +179,7 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange } = req.body;
+    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange, gamification } = req.body;
     
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
@@ -236,6 +236,12 @@ router.post('/', auth, async (req, res) => {
     // Set allowAnswerChange with proper boolean conversion
     sessionData.allowAnswerChange = allowAnswerChange === true || allowAnswerChange === 'true' || allowAnswerChange === 1 || allowAnswerChange === '1';
     
+    // Set gamification settings if provided
+    if (gamification) {
+      sessionData.gamification = gamification;
+      console.log('[Sessions] - gamification:', JSON.stringify(gamification, null, 2));
+    }
+    
     console.log('[Sessions] Creating session with data:', JSON.stringify(sessionData, null, 2));
     
     const session = new Session(sessionData);
@@ -277,6 +283,7 @@ router.post('/', auth, async (req, res) => {
         restrictToEnrolled: session.restrictToEnrolled,
         allowAnswerChange: session.allowAnswerChange,
         classId: session.classId,
+        gamification: session.gamification,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
       }
     });
@@ -1052,29 +1059,46 @@ router.post('/:id/questions', auth, async (req, res) => {
     if (!session.questions) {
       session.questions = [];
     }
-    const questionToStore = {
-      questionId: question.questionId,
-      questionText: question.questionText,
-      questionType: question.questionType,
-      options: question.options,
-      correctAnswer: question.correctAnswer,
-      points: question.points,
-      timeLimit: question.timeLimit,
-      startedAt: question.startedAt
-    };
     
-    console.log('[Sessions] Storing question in questions array:', {
-      questionId: questionToStore.questionId,
-      questionType: questionToStore.questionType,
-      correctAnswer: questionToStore.correctAnswer,
-      correctAnswerType: typeof questionToStore.correctAnswer,
-      options: questionToStore.options
-    });
+    // Check if question already exists (prevent duplicates)
+    const existingQuestion = session.questions.find(q => q.questionId === question.questionId);
+    if (!existingQuestion) {
+      const questionToStore = {
+        questionId: question.questionId,
+        questionText: question.questionText,
+        questionType: question.questionType,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        points: question.points,
+        timeLimit: question.timeLimit,
+        startedAt: question.startedAt
+      };
+      
+      console.log('[Sessions] Storing question in questions array:', {
+        questionId: questionToStore.questionId,
+        questionType: questionToStore.questionType,
+        correctAnswer: questionToStore.correctAnswer,
+        correctAnswerType: typeof questionToStore.correctAnswer,
+        options: questionToStore.options
+      });
+      
+      session.questions.push(questionToStore);
+    } else {
+      console.log('[Sessions] Question already exists, updating:', question.questionId);
+      // Update the existing question with new data
+      Object.assign(existingQuestion, {
+        questionText: question.questionText,
+        questionType: question.questionType,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        points: question.points,
+        timeLimit: question.timeLimit,
+        startedAt: question.startedAt
+      });
+    }
     
-    session.questions.push(questionToStore);
-    
-    // Update total questions count
-    session.totalQuestions = session.questionsSent.length;
+    // Update total questions count (use questions array for accurate count)
+    session.totalQuestions = session.questions.length;
     
     // CRITICAL: Mark currentQuestion and questions array as modified for Mongoose
     session.markModified('currentQuestion');
@@ -2107,6 +2131,92 @@ router.post('/:id/end', auth, async (req, res) => {
     session.totalCorrectResponses = totalCorrect;
     session.totalIncorrectResponses = totalResponses - totalCorrect;
     
+    // Calculate gamification metrics if enabled
+    if (session.gamification && session.gamification.enabled) {
+      console.log('[Sessions] Calculating gamification metrics...');
+      
+      // Calculate points per participant
+      const participantPoints = {};
+      let totalPointsAwarded = 0;
+      
+      // Process each response for points
+      session.responses.forEach(response => {
+        const participantId = response.participantId || response.userId?.toString();
+        if (!participantId) return;
+        
+        if (!participantPoints[participantId]) {
+          participantPoints[participantId] = {
+            points: 0,
+            correctAnswers: 0,
+            streak: 0,
+            participantId: participantId,
+            name: session.participants.find(p => 
+              (p.participantId === participantId) || 
+              (p.userId?.toString() === participantId)
+            )?.name || 'Anonymous'
+          };
+        }
+        
+        // Find the question for this response
+        const question = session.questions?.find(q => q.questionId === response.questionId);
+        const basePoints = question?.points || 10;
+        
+        // Check if answer is correct
+        let isCorrect = false;
+        if (question && question.correctAnswer !== undefined) {
+          const userAnswer = String(response.answer).toLowerCase().trim();
+          const correctAnswer = String(question.correctAnswer).toLowerCase().trim();
+          isCorrect = userAnswer === correctAnswer;
+        }
+        
+        if (isCorrect) {
+          let points = basePoints;
+          
+          // Speed bonus if enabled
+          if (session.gamification.features?.points?.speedBonus && response.timeSpent) {
+            const timeLimit = question?.timeLimit || 30;
+            const speedRatio = Math.max(0, (timeLimit - response.timeSpent) / timeLimit);
+            points += Math.floor(basePoints * speedRatio * 0.5); // 50% bonus max
+          }
+          
+          // Streak bonus
+          participantPoints[participantId].streak++;
+          if (participantPoints[participantId].streak > 1) {
+            points += Math.min(participantPoints[participantId].streak * 5, 25); // Max 25 streak bonus
+          }
+          
+          participantPoints[participantId].points += points;
+          participantPoints[participantId].correctAnswers++;
+          totalPointsAwarded += points;
+        } else {
+          // Break streak
+          participantPoints[participantId].streak = 0;
+        }
+      });
+      
+      // Create leaderboard
+      const leaderboard = Object.values(participantPoints)
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 10); // Top 10
+      
+      // Store gamification results
+      if (!session.gamification.totalPointsAwarded) {
+        session.gamification.totalPointsAwarded = totalPointsAwarded;
+      }
+      if (!session.gamification.leaderboard) {
+        session.gamification.leaderboard = leaderboard;
+      }
+      if (!session.gamification.topScore) {
+        session.gamification.topScore = leaderboard[0]?.points || 0;
+      }
+      
+      console.log('[Sessions] Gamification results:', {
+        totalPointsAwarded,
+        topScore: leaderboard[0]?.points || 0,
+        leaderboardSize: leaderboard.length
+      });
+    }
+    
     // Save the session with calculated metrics
     await session.save();
     
@@ -2132,7 +2242,16 @@ router.post('/:id/end', auth, async (req, res) => {
         questionResults: questionResults,
         completionRate: totalQuestions > 0 && totalParticipants > 0
           ? ((totalResponses / (totalQuestions * totalParticipants)) * 100).toFixed(1)
-          : '0.0'
+          : '0.0',
+        gamification: session.gamification ? {
+          enabled: session.gamification.enabled,
+          totalPointsAwarded: session.gamification.totalPointsAwarded || 0,
+          topScore: session.gamification.topScore || 0,
+          topScorers: session.gamification.leaderboard?.slice(0, 3).map(p => ({
+            name: p.name,
+            score: p.points
+          })) || []
+        } : null
       }
     });
     
