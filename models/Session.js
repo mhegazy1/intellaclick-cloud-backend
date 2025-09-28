@@ -125,6 +125,23 @@ const sessionSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Calculated metrics stored when session ends
+  averageScore: {
+    type: Number,
+    default: 0
+  },
+  completionRate: {
+    type: Number,
+    default: 0
+  },
+  totalCorrectResponses: {
+    type: Number,
+    default: 0
+  },
+  totalIncorrectResponses: {
+    type: Number,
+    default: 0
+  },
   startedAt: Date,
   endedAt: Date,
   // NEW: Gamification settings

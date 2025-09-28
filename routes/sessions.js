@@ -704,26 +704,76 @@ router.patch('/:id/status', auth, async (req, res) => {
   }
 });
 
-// Get all sessions for instructor
+// Get all sessions for instructor with pagination and complete data
 router.get('/', auth, async (req, res) => {
   try {
-    const sessions = await Session.find({ 
-      instructorId: req.user.userId || req.user.id 
-    }).sort({ createdAt: -1 });
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
     
-    res.json({
-      success: true,
-      sessions: sessions.map(s => ({
+    const instructorId = req.user.userId || req.user.id;
+    
+    // Get sessions and count in parallel
+    const [sessions, total] = await Promise.all([
+      Session.find({ instructorId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(), // Use lean() for better performance
+      Session.countDocuments({ instructorId })
+    ]);
+    
+    // Map sessions with all necessary fields
+    const mappedSessions = sessions.map(s => {
+      // Use stored average score if available, otherwise calculate
+      let averageScore = '0.0';
+      if (s.averageScore !== undefined && s.averageScore !== null) {
+        // Use the pre-calculated score stored when session ended
+        averageScore = s.averageScore.toFixed(1);
+      } else if (s.responses && s.responses.length > 0) {
+        // Fallback: calculate if not stored
+        const correctResponses = s.responses.filter(r => r.isCorrect).length;
+        averageScore = ((correctResponses / s.responses.length) * 100).toFixed(1);
+      }
+      
+      // Calculate duration
+      let duration = 0;
+      if (s.startedAt && s.endedAt) {
+        duration = Math.floor((new Date(s.endedAt) - new Date(s.startedAt)) / 60000); // minutes
+      }
+      
+      return {
         id: s._id,
         sessionCode: s.sessionCode,
         title: s.title,
         status: s.status,
-        participantCount: s.participants.length,
-        responseCount: s.responses.length,
+        participantCount: s.participants ? s.participants.length : 0,
+        responseCount: s.responses ? s.responses.length : 0,
+        totalQuestions: s.totalQuestions || s.questions?.length || 0,
+        averageScore: averageScore,
+        completionRate: s.completionRate ? s.completionRate.toFixed(1) : '0.0',
+        duration: duration,
         createdAt: s.createdAt,
         startedAt: s.startedAt,
-        endedAt: s.endedAt
-      }))
+        endedAt: s.endedAt,
+        // Include gamification summary if enabled
+        gamificationEnabled: s.gamification?.enabled || false,
+        totalPointsAwarded: s.gamification?.totalPointsAwarded || 0
+      };
+    });
+    
+    res.json({
+      success: true,
+      sessions: mappedSessions,
+      pagination: {
+        total: total,
+        page: page,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
     });
     
   } catch (error) {
@@ -1736,7 +1786,8 @@ router.get('/:id/results', auth, async (req, res) => {
           if (questionType === 'multiple_choice' || questionType === 'multiple-choice') {
             // For multiple choice, handle different answer formats
             const userAnswer = String(response.answer).trim();
-            const correctAnswer = String(question.correctAnswer).trim();
+            const correctAnswerRaw = question.correctAnswer;
+            const correctAnswer = String(correctAnswerRaw).trim();
             
             // Direct comparison first
             isCorrect = userAnswer === correctAnswer;
@@ -1759,8 +1810,10 @@ router.get('/:id/results', auth, async (req, res) => {
             
             console.log(`[Sessions] MC comparison:`, {
               userAnswer,
+              correctAnswerRaw,
               correctAnswer,
-              correctAnswerType: typeof correctAnswer,
+              correctAnswerType: typeof correctAnswerRaw,
+              letterIndex: /^[A-Z]$/i.test(userAnswer) ? userAnswer.toUpperCase().charCodeAt(0) - 65 : 'N/A',
               options: question.options,
               isCorrect
             });
@@ -2046,7 +2099,15 @@ router.post('/:id/end', auth, async (req, res) => {
       totalQuestions
     });
     
-    // Save the session
+    // Store calculated metrics on the session for future retrieval
+    session.averageScore = parseFloat(averageScore);
+    session.completionRate = totalQuestions > 0 && totalParticipants > 0
+      ? parseFloat(((totalResponses / (totalQuestions * totalParticipants)) * 100).toFixed(1))
+      : 0;
+    session.totalCorrectResponses = totalCorrect;
+    session.totalIncorrectResponses = totalResponses - totalCorrect;
+    
+    // Save the session with calculated metrics
     await session.save();
     
     // Return comprehensive results
