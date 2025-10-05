@@ -1,498 +1,545 @@
+/**
+ * Gamification API Routes
+ * Handles student gamification data (points, levels, achievements, leaderboards)
+ */
+
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
-const GamificationService = require('../services/gamificationService');
-const Achievement = require('../models/Achievement');
-const StudentProgress = require('../models/StudentProgress');
-const ClassEnrollment = require('../models/ClassEnrollment');
+const GamificationPlayer = require('../models/GamificationPlayer');
+const GamificationSettings = require('../models/GamificationSettings');
 
-/**
- * Get student's progress for a specific class
- */
-router.get('/progress/:classId', auth, async (req, res) => {
+// Debug middleware
+router.use((req, res, next) => {
+  console.log(`[Gamification Router] ${req.method} ${req.path}`);
+  next();
+});
+
+// Health check
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    message: 'Gamification API is running'
+  });
+});
+
+// Get or create player by ID
+router.get('/player/:playerId', async (req, res) => {
   try {
-    const { classId } = req.params;
-    const studentId = req.user._id || req.user.userId;
-    
-    // Verify student is enrolled in the class
-    const enrollment = await ClassEnrollment.findOne({
-      classId,
-      studentId,
-      status: 'enrolled'
-    });
-    
-    if (!enrollment) {
-      return res.status(403).json({
-        success: false,
-        error: 'You must be enrolled in this class to view progress'
-      });
-    }
-    
-    const progress = await GamificationService.getStudentProgress(studentId, classId);
-    
-    if (!progress) {
-      // Return empty progress for new students
+    const { playerId } = req.params;
+    console.log(`[Gamification] Fetching player: ${playerId}`);
+
+    let player = await GamificationPlayer.findOne({ playerId });
+
+    if (!player) {
+      console.log(`[Gamification] Player not found, returning default data`);
+      // Return default player data instead of 404
       return res.json({
         success: true,
-        progress: {
+        player: {
+          playerId,
+          name: 'Student',
           level: 1,
-          experience: 0,
-          experienceToNextLevel: 100,
           totalPoints: 0,
-          currentPoints: 0,
+          experience: 0,
+          coins: 0,
           stats: {
-            quizzesTaken: 0,
             questionsAnswered: 0,
             correctAnswers: 0,
             accuracy: 0,
-            bestScore: 0,
-            perfectScores: 0,
-            currentStreak: 0,
-            longestStreak: 0
+            bestStreak: 0,
+            currentStreak: 0
           },
-          rankings: {
-            class: 0,
-            allTime: 0,
-            weekly: 0
-          },
+          badges: [],
           achievements: [],
-          milestones: {}
+          inventory: {
+            powerUps: [],
+            themes: ['default'],
+            avatars: ['🎮']
+          }
         }
       });
     }
-    
+
     res.json({
       success: true,
-      progress
+      player
     });
+
   } catch (error) {
-    console.error('Error fetching student progress:', error);
+    console.error('[Gamification] Error fetching player:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch progress'
+      error: error.message
     });
   }
 });
 
-/**
- * Get class leaderboard
- */
-router.get('/leaderboard/:classId', auth, async (req, res) => {
+// Update or create player data (upsert)
+router.post('/player/:playerId', async (req, res) => {
   try {
-    const { classId } = req.params;
-    const { type = 'all-time', limit = 10 } = req.query;
-    
-    // Verify user has access to this class (enrolled student or instructor)
-    const studentId = req.user._id || req.user.userId;
-    const enrollment = await ClassEnrollment.findOne({
-      classId,
-      studentId,
-      status: 'enrolled'
+    const { playerId } = req.params;
+    const playerData = req.body;
+
+    console.log(`[Gamification] Upserting player: ${playerId}`);
+
+    const player = await GamificationPlayer.findOneAndUpdate(
+      { playerId },
+      {
+        ...playerData,
+        playerId,
+        lastActive: new Date()
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    console.log(`[Gamification] Player upserted successfully`);
+
+    res.json({
+      success: true,
+      player
     });
-    
-    const Class = require('../models/Class');
-    const isInstructor = await Class.findOne({
-      _id: classId,
-      $or: [
-        { instructorId: studentId },
-        { coInstructors: studentId },
-        { teachingAssistants: studentId }
-      ]
+
+  } catch (error) {
+    console.error('[Gamification] Error upserting player:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
-    
-    if (!enrollment && !isInstructor) {
-      return res.status(403).json({
+  }
+});
+
+// Batch upsert players (for syncing from desktop app)
+router.post('/players/sync', async (req, res) => {
+  try {
+    const { players } = req.body;
+
+    if (!Array.isArray(players)) {
+      return res.status(400).json({
         success: false,
-        error: 'You must be enrolled in this class to view the leaderboard'
+        error: 'Players must be an array'
       });
     }
-    
-    const leaderboard = await GamificationService.getClassLeaderboard(
-      classId, 
-      type, 
-      parseInt(limit)
-    );
-    
-    // Get current user's rank if they're a student
-    let userRank = null;
-    if (enrollment) {
-      const userProgress = await StudentProgress.findOne({ studentId, classId });
-      if (userProgress) {
-        userRank = {
-          rank: userProgress.classRank,
-          points: userProgress.totalPoints,
-          level: userProgress.level
-        };
+
+    console.log(`[Gamification] Syncing ${players.length} players`);
+
+    const operations = players.map(player => ({
+      updateOne: {
+        filter: { playerId: player.playerId || player.id },
+        update: {
+          ...player,
+          playerId: player.playerId || player.id,
+          lastActive: new Date()
+        },
+        upsert: true
       }
-    }
-    
+    }));
+
+    const result = await GamificationPlayer.bulkWrite(operations);
+
+    console.log(`[Gamification] Sync complete:`, {
+      upserted: result.upsertedCount,
+      modified: result.modifiedCount
+    });
+
     res.json({
       success: true,
-      leaderboard,
-      userRank,
-      type,
-      totalStudents: await ClassEnrollment.countDocuments({ classId, status: 'enrolled' })
+      upserted: result.upsertedCount,
+      modified: result.modifiedCount,
+      total: result.upsertedCount + result.modifiedCount
     });
+
   } catch (error) {
-    console.error('Error fetching leaderboard:', error);
+    console.error('[Gamification] Error syncing players:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch leaderboard'
+      error: error.message
     });
   }
 });
 
-/**
- * Get all available achievements
- */
-router.get('/achievements', auth, async (req, res) => {
+// Get leaderboard for a roster/class
+router.get('/leaderboard/:rosterId', async (req, res) => {
   try {
-    const { category } = req.query;
-    const query = { isActive: true };
-    
-    if (category) {
-      query.category = category;
-    }
-    
-    const achievements = await Achievement.find(query)
-      .select('-__v -updatedAt')
-      .sort({ rarity: 1, points: -1 });
-    
-    // Group by category
-    const groupedAchievements = achievements.reduce((acc, achievement) => {
-      if (!acc[achievement.category]) {
-        acc[achievement.category] = [];
-      }
-      
-      // Hide details of hidden achievements
-      if (achievement.isHidden) {
-        acc[achievement.category].push({
-          id: achievement._id,
-          name: '???',
-          description: 'Hidden achievement - unlock to reveal!',
-          icon: '🔒',
-          rarity: achievement.rarity,
-          isHidden: true
-        });
-      } else {
-        acc[achievement.category].push({
-          id: achievement._id,
-          code: achievement.code,
-          name: achievement.name,
-          description: achievement.description,
-          icon: achievement.icon,
-          color: achievement.color,
-          rarity: achievement.rarity,
-          points: achievement.points,
-          criteria: achievement.criteria
-        });
-      }
-      
-      return acc;
-    }, {});
-    
+    const { rosterId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const sortBy = req.query.sortBy || 'totalPoints';
+
+    console.log(`[Gamification] Fetching leaderboard for roster: ${rosterId}`);
+
+    const sortField = {};
+    sortField[sortBy] = -1;
+
+    const players = await GamificationPlayer
+      .find({ rosterId })
+      .sort(sortField)
+      .limit(limit)
+      .select('playerId name avatar level totalPoints stats.accuracy stats.bestStreak');
+
     res.json({
       success: true,
-      achievements: groupedAchievements,
-      totalAchievements: achievements.length
+      leaderboard: players,
+      count: players.length
     });
+
   } catch (error) {
-    console.error('Error fetching achievements:', error);
+    console.error('[Gamification] Error fetching leaderboard:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch achievements'
+      error: error.message
     });
   }
 });
 
-/**
- * Get student's achievements for a class
- */
-router.get('/achievements/:classId/student', auth, async (req, res) => {
+// Get player rank within roster
+router.get('/player/:playerId/rank/:rosterId', async (req, res) => {
   try {
-    const { classId } = req.params;
-    const studentId = req.user._id || req.user.userId;
-    
-    const progress = await StudentProgress.findOne({ studentId, classId })
-      .populate('achievements.achievementId');
-    
-    if (!progress) {
+    const { playerId, rosterId } = req.params;
+
+    console.log(`[Gamification] Getting rank for player ${playerId} in roster ${rosterId}`);
+
+    const player = await GamificationPlayer.findOne({ playerId });
+
+    if (!player) {
       return res.json({
         success: true,
-        achievements: [],
-        totalEarned: 0,
-        totalPoints: 0
+        rank: null,
+        totalPlayers: 0
       });
     }
-    
-    const achievements = progress.achievements.map(a => ({
-      id: a.achievementId._id,
-      code: a.achievementId.code,
-      name: a.achievementId.name,
-      description: a.achievementId.description,
-      icon: a.achievementId.icon,
-      color: a.achievementId.color,
-      rarity: a.achievementId.rarity,
-      points: a.achievementId.points,
-      earnedAt: a.earnedAt,
-      progress: a.progress
-    }));
-    
-    const totalPoints = achievements.reduce((sum, a) => sum + a.points, 0);
-    
+
+    // Count players with more points in the same roster
+    const rank = await GamificationPlayer.countDocuments({
+      rosterId,
+      totalPoints: { $gt: player.totalPoints }
+    }) + 1;
+
+    const totalPlayers = await GamificationPlayer.countDocuments({ rosterId });
+
     res.json({
       success: true,
-      achievements,
-      totalEarned: achievements.length,
-      totalPoints
+      rank,
+      totalPlayers,
+      percentile: Math.round((1 - (rank / totalPlayers)) * 100)
     });
+
   } catch (error) {
-    console.error('Error fetching student achievements:', error);
+    console.error('[Gamification] Error getting rank:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch achievements'
+      error: error.message
     });
   }
 });
 
-/**
- * Award manual points (instructor only)
- */
-router.post('/award-points', auth, async (req, res) => {
+// Get analytics for a roster
+router.get('/analytics/:rosterId', async (req, res) => {
   try {
-    const { studentId, classId, points, reason } = req.body;
-    const instructorId = req.user._id || req.user.userId;
-    
-    // Verify instructor owns the class
-    const Class = require('../models/Class');
-    const classDoc = await Class.findOne({
-      _id: classId,
-      $or: [
-        { instructorId },
-        { coInstructors: instructorId },
-        { teachingAssistants: instructorId }
-      ]
-    });
-    
-    if (!classDoc) {
-      return res.status(403).json({
-        success: false,
-        error: 'You do not have permission to award points in this class'
+    const { rosterId } = req.params;
+
+    console.log(`[Gamification] Fetching analytics for roster: ${rosterId}`);
+
+    const players = await GamificationPlayer.find({ rosterId });
+
+    if (players.length === 0) {
+      return res.json({
+        success: true,
+        analytics: {
+          totalPlayers: 0,
+          totalPoints: 0,
+          averageLevel: 0,
+          averageAccuracy: 0,
+          topPerformers: []
+        }
       });
     }
-    
-    // Verify student is enrolled
-    const enrollment = await ClassEnrollment.findOne({
-      classId,
-      studentId,
-      status: 'enrolled'
+
+    const totalPoints = players.reduce((sum, p) => sum + p.totalPoints, 0);
+    const totalLevels = players.reduce((sum, p) => sum + p.level, 0);
+    const totalAccuracy = players.reduce((sum, p) => sum + (p.stats.accuracy || 0), 0);
+
+    const topPerformers = players
+      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .slice(0, 10)
+      .map(p => ({
+        playerId: p.playerId,
+        name: p.name,
+        totalPoints: p.totalPoints,
+        level: p.level,
+        accuracy: p.stats.accuracy
+      }));
+
+    res.json({
+      success: true,
+      analytics: {
+        totalPlayers: players.length,
+        totalPoints,
+        averageLevel: Math.round(totalLevels / players.length * 10) / 10,
+        averageAccuracy: Math.round(totalAccuracy / players.length * 10) / 10,
+        averagePoints: Math.round(totalPoints / players.length),
+        topPerformers
+      }
     });
-    
-    if (!enrollment) {
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Award achievement to player
+router.post('/player/:playerId/achievement', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const achievement = req.body;
+
+    console.log(`[Gamification] Awarding achievement to ${playerId}:`, achievement.id);
+
+    const player = await GamificationPlayer.findOne({ playerId });
+
+    if (!player) {
       return res.status(404).json({
         success: false,
-        error: 'Student is not enrolled in this class'
+        error: 'Player not found'
       });
     }
-    
-    const result = await GamificationService.awardPoints(
-      studentId,
-      classId,
-      points,
-      reason || 'Manual award by instructor'
-    );
-    
+
+    await player.unlockAchievement(achievement);
+
     res.json({
       success: true,
-      result
+      achievements: player.achievements
     });
+
   } catch (error) {
-    console.error('Error awarding points:', error);
+    console.error('[Gamification] Error awarding achievement:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to award points'
+      error: error.message
     });
   }
 });
 
-/**
- * Initialize default achievements (admin only)
- */
-router.post('/init-achievements', auth, async (req, res) => {
+// Award badge to player
+router.post('/player/:playerId/badge', async (req, res) => {
   try {
-    // Check if user is admin
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({
+    const { playerId } = req.params;
+    const badge = req.body;
+
+    console.log(`[Gamification] Awarding badge to ${playerId}:`, badge.id);
+
+    const player = await GamificationPlayer.findOne({ playerId });
+
+    if (!player) {
+      return res.status(404).json({
         success: false,
-        error: 'Admin access required'
+        error: 'Player not found'
       });
     }
-    
-    // Default achievements
-    const defaultAchievements = [
-      // Participation achievements
-      {
-        code: 'FIRST_STEPS',
-        name: 'First Steps',
-        description: 'Complete your first quiz',
-        category: 'participation',
-        icon: '👣',
-        color: '#4CAF50',
-        rarity: 'common',
-        criteria: { type: 'quiz_count', value: 1 },
-        points: 10
-      },
-      {
-        code: 'QUIZ_VETERAN',
-        name: 'Quiz Veteran',
-        description: 'Complete 10 quizzes',
-        category: 'participation',
-        icon: '🎓',
-        color: '#2196F3',
-        rarity: 'uncommon',
-        criteria: { type: 'quiz_count', value: 10 },
-        points: 50
-      },
-      {
-        code: 'QUIZ_MASTER',
-        name: 'Quiz Master',
-        description: 'Complete 50 quizzes',
-        category: 'participation',
-        icon: '🏆',
-        color: '#FF9800',
-        rarity: 'rare',
-        criteria: { type: 'quiz_count', value: 50 },
-        points: 200
-      },
-      
-      // Performance achievements
-      {
-        code: 'PERFECT_SCORE',
-        name: 'Perfectionist',
-        description: 'Get 100% on a quiz',
-        category: 'performance',
-        icon: '💯',
-        color: '#9C27B0',
-        rarity: 'uncommon',
-        criteria: { type: 'perfect_scores', value: 1 },
-        points: 25
-      },
-      {
-        code: 'PERFECT_STREAK',
-        name: 'Perfect Streak',
-        description: 'Get 100% on 5 quizzes',
-        category: 'performance',
-        icon: '🔥',
-        color: '#F44336',
-        rarity: 'rare',
-        criteria: { type: 'perfect_scores', value: 5 },
-        points: 100
-      },
-      
-      // Speed achievements
-      {
-        code: 'SPEED_DEMON',
-        name: 'Speed Demon',
-        description: 'Answer 10 questions correctly in under 5 seconds each',
-        category: 'speed',
-        icon: '⚡',
-        color: '#FFEB3B',
-        rarity: 'uncommon',
-        criteria: { type: 'response_speed', value: 10 },
-        points: 30
-      },
-      
-      // Consistency achievements
-      {
-        code: 'WEEK_WARRIOR',
-        name: 'Week Warrior',
-        description: 'Maintain a 7-day attendance streak',
-        category: 'consistency',
-        icon: '📅',
-        color: '#00BCD4',
-        rarity: 'uncommon',
-        criteria: { type: 'attendance_streak', value: 7 },
-        points: 40
-      },
-      {
-        code: 'MONTH_MASTER',
-        name: 'Month Master',
-        description: 'Maintain a 30-day attendance streak',
-        category: 'consistency',
-        icon: '📆',
-        color: '#3F51B5',
-        rarity: 'epic',
-        criteria: { type: 'attendance_streak', value: 30 },
-        points: 150
-      },
-      
-      // Milestone achievements
-      {
-        code: 'CENTURY_CLUB',
-        name: 'Century Club',
-        description: 'Answer 100 questions',
-        category: 'milestone',
-        icon: '💯',
-        color: '#795548',
-        rarity: 'uncommon',
-        criteria: { type: 'questions_answered', value: 100 },
-        points: 50
-      },
-      {
-        code: 'THOUSAND_ANSWERS',
-        name: 'Thousand Answers',
-        description: 'Answer 1000 questions',
-        category: 'milestone',
-        icon: '🌟',
-        color: '#607D8B',
-        rarity: 'epic',
-        criteria: { type: 'questions_answered', value: 1000 },
-        points: 500
-      },
-      
-      // Hidden achievements
-      {
-        code: 'NIGHT_OWL',
-        name: 'Night Owl',
-        description: 'Complete a quiz between midnight and 5 AM',
-        category: 'special',
-        icon: '🦉',
-        color: '#1A237E',
-        rarity: 'rare',
-        criteria: { type: 'special_condition', value: 'night_quiz' },
-        points: 50,
-        isHidden: true
-      }
-    ];
-    
-    // Insert achievements (skip if already exists)
-    const results = [];
-    for (const achievement of defaultAchievements) {
-      try {
-        const existing = await Achievement.findOne({ code: achievement.code });
-        if (!existing) {
-          const newAchievement = await Achievement.create(achievement);
-          results.push({ code: achievement.code, status: 'created' });
-        } else {
-          results.push({ code: achievement.code, status: 'exists' });
-        }
-      } catch (err) {
-        results.push({ code: achievement.code, status: 'error', error: err.message });
-      }
-    }
-    
+
+    await player.awardBadge(badge);
+
     res.json({
       success: true,
-      message: 'Achievements initialized',
-      results
+      badges: player.badges
     });
+
   } catch (error) {
-    console.error('Error initializing achievements:', error);
+    console.error('[Gamification] Error awarding badge:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to initialize achievements'
+      error: error.message
     });
   }
+});
+
+// ========================================
+// INSTRUCTOR SETTINGS ROUTES
+// ========================================
+
+// Get settings for instructor/class/session
+router.get('/settings/:type/:id', async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    console.log(`[Gamification] Fetching settings for ${type}: ${id}`);
+
+    const query = {};
+    if (type === 'instructor') query.instructorId = id;
+    else if (type === 'class') query.classId = id;
+    else if (type === 'session') query.sessionId = id;
+    else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid type. Must be: instructor, class, or session'
+      });
+    }
+
+    let settings = await GamificationSettings.findOne(query);
+
+    if (!settings) {
+      // Return default settings if none exist
+      console.log(`[Gamification] No settings found, returning defaults`);
+      return res.json({
+        success: true,
+        settings: GamificationSettings.getDefaultSettings(),
+        isDefault: true
+      });
+    }
+
+    res.json({
+      success: true,
+      settings,
+      isDefault: false
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching settings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Create or update settings
+router.post('/settings/:type/:id', async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const settingsData = req.body;
+
+    console.log(`[Gamification] Updating settings for ${type}: ${id}`);
+
+    const query = {};
+    const update = { ...settingsData };
+
+    if (type === 'instructor') {
+      query.instructorId = id;
+      update.instructorId = id;
+    } else if (type === 'class') {
+      query.classId = id;
+      update.classId = id;
+    } else if (type === 'session') {
+      query.sessionId = id;
+      update.sessionId = id;
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid type. Must be: instructor, class, or session'
+      });
+    }
+
+    const settings = await GamificationSettings.findOneAndUpdate(
+      query,
+      update,
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    console.log(`[Gamification] Settings updated successfully`);
+
+    res.json({
+      success: true,
+      settings
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error updating settings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get what a student can see based on settings
+router.get('/settings/:type/:id/student-view', async (req, res) => {
+  try {
+    const { type, id } = req.params;
+
+    const query = {};
+    if (type === 'instructor') query.instructorId = id;
+    else if (type === 'class') query.classId = id;
+    else if (type === 'session') query.sessionId = id;
+
+    let settings = await GamificationSettings.findOne(query);
+
+    if (!settings) {
+      settings = GamificationSettings.getDefaultSettings();
+    }
+
+    // Return only visibility settings (what student can see)
+    res.json({
+      success: true,
+      visibility: settings.visibility || GamificationSettings.getDefaultSettings().visibility
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching student view settings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Quick toggle specific visibility setting
+router.patch('/settings/:type/:id/visibility/:feature', async (req, res) => {
+  try {
+    const { type, id, feature } = req.params;
+    const { enabled } = req.body;
+
+    console.log(`[Gamification] Toggling ${feature} to ${enabled} for ${type}: ${id}`);
+
+    const query = {};
+    if (type === 'instructor') query.instructorId = id;
+    else if (type === 'class') query.classId = id;
+    else if (type === 'session') query.sessionId = id;
+
+    const update = {};
+    update[`visibility.${feature}`] = enabled;
+
+    const settings = await GamificationSettings.findOneAndUpdate(
+      query,
+      update,
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    res.json({
+      success: true,
+      feature,
+      enabled,
+      settings: settings.visibility
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error toggling visibility:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get default settings (for reference)
+router.get('/settings/defaults', (req, res) => {
+  res.json({
+    success: true,
+    settings: GamificationSettings.getDefaultSettings()
+  });
 });
 
 module.exports = router;
