@@ -567,7 +567,9 @@ router.post('/join', async (req, res) => {
 
     // First, check by userId if provided (most reliable for logged-in students)
     if (userId) {
-      existingParticipant = session.participants.find(p => p.userId === userId);
+      existingParticipant = session.participants.find(p =>
+        p.userId && p.userId.toString() === userId.toString()
+      );
       if (existingParticipant) {
         console.log('[Sessions] Found existing participant by userId:', userId);
       }
