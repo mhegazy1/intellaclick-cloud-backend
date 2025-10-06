@@ -542,4 +542,79 @@ router.get('/settings/defaults', (req, res) => {
   });
 });
 
+// Delete a single player
+router.delete('/player/:playerId', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    console.log(`[Gamification] Deleting player: ${playerId}`);
+
+    const result = await GamificationPlayer.deleteOne({ playerId });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Player not found'
+      });
+    }
+
+    console.log(`[Gamification] Player deleted successfully`);
+
+    res.json({
+      success: true,
+      message: 'Player deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error deleting player:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Cleanup duplicate players (keep only players with studentId)
+router.post('/cleanup-duplicates', async (req, res) => {
+  try {
+    console.log(`[Gamification] Cleaning up duplicate players...`);
+
+    // Find all players with null studentId
+    const duplicates = await GamificationPlayer.find({
+      $or: [
+        { studentId: null },
+        { studentId: { $exists: false } }
+      ]
+    });
+
+    console.log(`[Gamification] Found ${duplicates.length} players without studentId`);
+
+    // Delete players without studentId
+    const result = await GamificationPlayer.deleteMany({
+      $or: [
+        { studentId: null },
+        { studentId: { $exists: false } }
+      ]
+    });
+
+    console.log(`[Gamification] Deleted ${result.deletedCount} duplicate players`);
+
+    // Get remaining player count
+    const remainingCount = await GamificationPlayer.countDocuments();
+
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      remainingPlayers: remainingCount,
+      message: `Cleaned up ${result.deletedCount} duplicate players`
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error cleaning up duplicates:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
