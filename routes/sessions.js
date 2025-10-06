@@ -608,19 +608,39 @@ router.post('/join', async (req, res) => {
         }
       });
     } else {
-      // For logged-in users, check if they already have a gamification player
-      // If yes, reuse their existing participantId to prevent duplicates across sessions
+      // For logged-in users, check if they already have a participantId from ANY previous session
+      // Priority: 1) Gamification player, 2) Previous session participant, 3) Generate new
       let participantId;
       if (userId) {
+        // First, check gamification system
         const GamificationPlayer = require('../models/GamificationPlayer');
         const existingPlayer = await GamificationPlayer.findOne({ studentId: userId });
 
         if (existingPlayer) {
           participantId = existingPlayer.playerId;
-          console.log('[Sessions] Reusing existing participantId from gamification:', participantId);
+          console.log('[Sessions] Reusing participantId from gamification player:', participantId);
         } else {
-          participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
-          console.log('[Sessions] Generated new participantId:', participantId);
+          // Second, check if this user has joined ANY session before (even without answering questions)
+          const previousSession = await Session.findOne({
+            'participants.userId': userId,
+            'participants.participantId': { $exists: true, $ne: null }
+          }).sort({ 'participants.lastJoinedAt': -1 });
+
+          if (previousSession) {
+            const previousParticipant = previousSession.participants.find(p =>
+              p.userId && p.userId.toString() === userId.toString()
+            );
+            if (previousParticipant && previousParticipant.participantId) {
+              participantId = previousParticipant.participantId;
+              console.log('[Sessions] Reusing participantId from previous session:', participantId);
+            }
+          }
+
+          // Finally, generate new ID if no previous record found
+          if (!participantId) {
+            participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
+            console.log('[Sessions] Generated new participantId for first-time user:', participantId);
+          }
         }
       } else {
         // For anonymous users, always generate new ID
