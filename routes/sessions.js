@@ -561,18 +561,35 @@ router.post('/join', async (req, res) => {
     }
     
     console.log('[Sessions] Current participants before checking:', session.participants.length);
-    
-    // Check if participant already exists by deviceId
+
+    // Check if participant already exists (prioritize userId over deviceId)
     let existingParticipant = null;
-    if (deviceId) {
+
+    // First, check by userId if provided (most reliable for logged-in students)
+    if (userId) {
+      existingParticipant = session.participants.find(p => p.userId === userId);
+      if (existingParticipant) {
+        console.log('[Sessions] Found existing participant by userId:', userId);
+      }
+    }
+
+    // If not found and deviceId provided, check by deviceId
+    if (!existingParticipant && deviceId) {
       existingParticipant = session.participants.find(p => p.deviceId === deviceId);
+      if (existingParticipant) {
+        console.log('[Sessions] Found existing participant by deviceId:', deviceId);
+      }
     }
     
     if (existingParticipant) {
-      console.log('[Sessions] Found existing participant with deviceId:', deviceId);
+      console.log('[Sessions] Reusing existing participant:', existingParticipant.participantId);
       // Update participant name and last join time
       existingParticipant.name = name || existingParticipant.name || 'Anonymous';
       existingParticipant.lastJoinedAt = new Date();
+      // Update userId if provided (in case it changed)
+      if (userId) {
+        existingParticipant.userId = userId;
+      }
       
       console.log('[Sessions] Updating existing participant');
       await session.save();
