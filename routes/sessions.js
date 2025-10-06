@@ -608,9 +608,26 @@ router.post('/join', async (req, res) => {
         }
       });
     } else {
-      // Generate new participant ID
-      const participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
-      
+      // For logged-in users, check if they already have a gamification player
+      // If yes, reuse their existing participantId to prevent duplicates across sessions
+      let participantId;
+      if (userId) {
+        const GamificationPlayer = require('../models/GamificationPlayer');
+        const existingPlayer = await GamificationPlayer.findOne({ studentId: userId });
+
+        if (existingPlayer) {
+          participantId = existingPlayer.playerId;
+          console.log('[Sessions] Reusing existing participantId from gamification:', participantId);
+        } else {
+          participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
+          console.log('[Sessions] Generated new participantId:', participantId);
+        }
+      } else {
+        // For anonymous users, always generate new ID
+        participantId = `P${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
+        console.log('[Sessions] Generated new participantId for anonymous user:', participantId);
+      }
+
       // Check if enrolled (for tracking purposes)
       let isEnrolled = false;
       if (userId) {
