@@ -171,11 +171,16 @@ router.get('/leaderboard/:rosterId', async (req, res) => {
 
     console.log(`[Gamification] Fetching leaderboard for roster: ${rosterId}`);
 
+    // Handle "unassigned" as special case for players without a rosterId
+    const query = rosterId === 'unassigned'
+      ? { $or: [{ rosterId: null }, { rosterId: { $exists: false } }] }
+      : { rosterId };
+
     const sortField = {};
     sortField[sortBy] = -1;
 
     const players = await GamificationPlayer
-      .find({ rosterId })
+      .find(query)
       .sort(sortField)
       .limit(limit)
       .select('playerId name avatar level totalPoints stats.accuracy stats.bestStreak');
@@ -212,13 +217,18 @@ router.get('/player/:playerId/rank/:rosterId', async (req, res) => {
       });
     }
 
+    // Handle "unassigned" as special case for players without a rosterId
+    const query = rosterId === 'unassigned'
+      ? { $or: [{ rosterId: null }, { rosterId: { $exists: false } }] }
+      : { rosterId };
+
     // Count players with more points in the same roster
     const rank = await GamificationPlayer.countDocuments({
-      rosterId,
+      ...query,
       totalPoints: { $gt: player.totalPoints }
     }) + 1;
 
-    const totalPlayers = await GamificationPlayer.countDocuments({ rosterId });
+    const totalPlayers = await GamificationPlayer.countDocuments(query);
 
     res.json({
       success: true,
@@ -243,7 +253,12 @@ router.get('/analytics/:rosterId', async (req, res) => {
 
     console.log(`[Gamification] Fetching analytics for roster: ${rosterId}`);
 
-    const players = await GamificationPlayer.find({ rosterId });
+    // Handle "unassigned" as special case for players without a rosterId
+    const query = rosterId === 'unassigned'
+      ? { $or: [{ rosterId: null }, { rosterId: { $exists: false } }] }
+      : { rosterId };
+
+    const players = await GamificationPlayer.find(query);
 
     if (players.length === 0) {
       return res.json({
