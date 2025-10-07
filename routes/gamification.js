@@ -588,6 +588,9 @@ router.post('/cleanup-duplicates', async (req, res) => {
 
     console.log(`[Gamification] Found ${duplicates.length} players without studentId`);
 
+    // Extract player IDs before deletion (for returning to client)
+    const deletedPlayerIds = duplicates.map(p => p.playerId);
+
     // Delete players without studentId
     const result = await GamificationPlayer.deleteMany({
       $or: [
@@ -605,6 +608,7 @@ router.post('/cleanup-duplicates', async (req, res) => {
       success: true,
       deletedCount: result.deletedCount,
       remainingPlayers: remainingCount,
+      deletedPlayerIds: deletedPlayerIds,
       message: `Cleaned up ${result.deletedCount} duplicate players`
     });
 
