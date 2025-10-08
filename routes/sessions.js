@@ -2190,10 +2190,55 @@ router.post('/:id/end', auth, async (req, res) => {
     // Calculate gamification metrics if enabled
     if (session.gamification && session.gamification.enabled) {
       console.log('[Sessions] Calculating gamification metrics...');
-      
-      // Calculate points per participant
-      const participantPoints = {};
-      let totalPointsAwarded = 0;
+
+      // If session has a roster, get actual points from GamificationPlayer collection
+      // (This matches what the dashboard shows)
+      if (session.rosterId) {
+        try {
+          console.log('[Sessions] Querying GamificationPlayer for roster:', session.rosterId);
+          const GamificationPlayer = require('../models/GamificationPlayer');
+
+          const players = await GamificationPlayer.find({
+            rosterId: session.rosterId.toString()
+          }).select('playerId name totalPoints').sort({ totalPoints: -1 });
+
+          console.log('[Sessions] Found', players.length, 'players with points');
+
+          if (players && players.length > 0) {
+            const totalPointsAwarded = players.reduce((sum, p) => sum + (p.totalPoints || 0), 0);
+            const topScore = players[0]?.totalPoints || 0;
+            const topScorers = players
+              .filter(p => p.totalPoints === topScore)
+              .map(p => ({ name: p.name, score: p.totalPoints }));
+
+            // Store in session for consistency
+            session.gamification.totalPointsAwarded = totalPointsAwarded;
+            session.gamification.topScore = topScore;
+            session.gamification.leaderboard = players.slice(0, 10).map(p => ({
+              participantId: p.playerId,
+              name: p.name,
+              points: p.totalPoints
+            }));
+
+            console.log('[Sessions] GamificationPlayer stats:', {
+              totalPointsAwarded,
+              topScore,
+              topScorersCount: topScorers.length
+            });
+          }
+        } catch (gamError) {
+          console.error('[Sessions] Error querying GamificationPlayer:', gamError);
+          // Fall back to calculating from responses
+        }
+      }
+
+      // If no roster or GamificationPlayer query failed, calculate from responses
+      if (!session.gamification.totalPointsAwarded) {
+        console.log('[Sessions] Falling back to calculating points from responses...');
+
+        // Calculate points per participant
+        const participantPoints = {};
+        let totalPointsAwarded = 0;
       
       // Process each response for points
       session.responses.forEach(response => {
@@ -2266,11 +2311,12 @@ router.post('/:id/end', auth, async (req, res) => {
         session.gamification.topScore = leaderboard[0]?.points || 0;
       }
       
-      console.log('[Sessions] Gamification results:', {
+      console.log('[Sessions] Gamification results from responses:', {
         totalPointsAwarded,
         topScore: leaderboard[0]?.points || 0,
         leaderboardSize: leaderboard.length
       });
+      } // End of if (!session.gamification.totalPointsAwarded)
     }
     
     // Save the session with calculated metrics
