@@ -69,7 +69,9 @@ class EmailService {
   async sendVerificationEmail(email, token, data) {
     // Determine which portal to use based on user type
     const baseUrl = data.isInstructor ? this.instructorPortalUrl : this.studentPortalUrl;
-    const verificationUrl = `${baseUrl}/verify-email?token=${token}`;
+    // Instructor portal uses .html extension, student portal uses React routing
+    const verificationPath = data.isInstructor ? '/verify-email.html' : '/verify-email';
+    const verificationUrl = `${baseUrl}${verificationPath}?token=${token}`;
     
     const html = `
       <!DOCTYPE html>
@@ -121,7 +123,9 @@ class EmailService {
   async sendPasswordResetEmail(email, token, data) {
     // Determine which portal to use based on user type
     const baseUrl = data.isInstructor ? this.instructorPortalUrl : this.studentPortalUrl;
-    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+    // Instructor portal uses .html extension, student portal uses React routing
+    const resetPath = data.isInstructor ? '/reset-password.html' : '/reset-password';
+    const resetUrl = `${baseUrl}${resetPath}?token=${token}`;
     
     const html = `
       <!DOCTYPE html>
