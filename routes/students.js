@@ -134,7 +134,8 @@ router.post('/register', authLimiter, registrationValidation, async (req, res) =
     if (emailService) {
       emailService.sendVerificationEmail(email, verificationToken, {
         firstName,
-        studentId: student._id
+        studentId: student._id,
+        isInstructor: false
       }).catch(err => {
         console.error('Failed to send verification email:', err);
       });
@@ -311,7 +312,8 @@ router.post('/resend-verification', authLimiter, [
     if (emailService) {
       await emailService.sendVerificationEmail(email, verificationToken, {
         firstName: student.profile.firstName,
-        studentId: student._id
+        studentId: student._id,
+        isInstructor: false
       });
     }
 
@@ -351,7 +353,8 @@ router.post('/forgot-password', authLimiter, [
     // Send reset email
     if (emailService) {
       await emailService.sendPasswordResetEmail(email, resetToken, {
-        firstName: student.profile.firstName
+        firstName: student.profile.firstName,
+        isInstructor: false
       });
     }
 

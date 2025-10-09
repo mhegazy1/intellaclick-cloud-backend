@@ -39,7 +39,8 @@ class EmailService {
     }
 
     this.from = process.env.EMAIL_FROM || 'IntellaQuiz <noreply@intellaquiz.com>';
-    this.baseUrl = process.env.STUDENT_PORTAL_URL || 'https://join.intellaclick.com';
+    this.studentPortalUrl = process.env.STUDENT_PORTAL_URL || 'https://join.intellaclick.com';
+    this.instructorPortalUrl = process.env.INSTRUCTOR_PORTAL_URL || 'https://instructor.intellaclick.com';
   }
 
   async sendEmail(to, subject, html, text) {
@@ -66,7 +67,9 @@ class EmailService {
   }
 
   async sendVerificationEmail(email, token, data) {
-    const verificationUrl = `${this.baseUrl}/verify-email?token=${token}`;
+    // Determine which portal to use based on user type
+    const baseUrl = data.isInstructor ? this.instructorPortalUrl : this.studentPortalUrl;
+    const verificationUrl = `${baseUrl}/verify-email?token=${token}`;
     
     const html = `
       <!DOCTYPE html>
@@ -116,7 +119,9 @@ class EmailService {
   }
 
   async sendPasswordResetEmail(email, token, data) {
-    const resetUrl = `${this.baseUrl}/reset-password?token=${token}`;
+    // Determine which portal to use based on user type
+    const baseUrl = data.isInstructor ? this.instructorPortalUrl : this.studentPortalUrl;
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
     
     const html = `
       <!DOCTYPE html>
@@ -216,6 +221,39 @@ class EmailService {
   }
 
   async sendWelcomeEmail(email, data) {
+    const baseUrl = data.isInstructor ? this.instructorPortalUrl : this.studentPortalUrl;
+    const features = data.isInstructor ? `
+            <div class="feature">
+              <h3>📚 Create Interactive Quizzes</h3>
+              <p>Build engaging assessments with multiple question types</p>
+            </div>
+
+            <div class="feature">
+              <h3>📊 Live Classroom Sessions</h3>
+              <p>Run real-time clicker sessions with PowerPoint integration</p>
+            </div>
+
+            <div class="feature">
+              <h3>📈 Track Student Performance</h3>
+              <p>Analyze results and identify areas where students need help</p>
+            </div>
+    ` : `
+            <div class="feature">
+              <h3>📚 Join Live Sessions</h3>
+              <p>Participate in real-time classroom quizzes and polls</p>
+            </div>
+
+            <div class="feature">
+              <h3>📊 Track Your Progress</h3>
+              <p>View your performance history and identify areas for improvement</p>
+            </div>
+
+            <div class="feature">
+              <h3>🏆 Compete with Classmates</h3>
+              <p>See how you rank on the leaderboard and earn achievements</p>
+            </div>
+    `;
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -238,27 +276,11 @@ class EmailService {
           <div class="content">
             <h2>Hi ${data.firstName},</h2>
             <p>Your email has been verified and your account is now active! Here's what you can do with IntellaQuiz:</p>
-            
-            <div class="feature">
-              <h3>📚 Join Live Sessions</h3>
-              <p>Participate in real-time classroom quizzes and polls</p>
-            </div>
-            
-            <div class="feature">
-              <h3>📊 Track Your Progress</h3>
-              <p>View your performance history and identify areas for improvement</p>
-            </div>
-            
-            <div class="feature">
-              <h3>🏆 Compete with Classmates</h3>
-              <p>See how you rank on the leaderboard and earn achievements</p>
-            </div>
-            
+            ${features}
             <p style="text-align: center;">
-              <a href="${this.baseUrl}" class="button">Get Started</a>
+              <a href="${baseUrl}" class="button">Get Started</a>
             </p>
-            
-            <p>Have a session code? Enter it after logging in to join your class!</p>
+            ${data.isInstructor ? '<p>Start creating quizzes or run a live session with your students!</p>' : '<p>Have a session code? Enter it after logging in to join your class!</p>'}
           </div>
           <div class="footer">
             <p>&copy; ${new Date().getFullYear()} IntellaQuiz. All rights reserved.</p>
@@ -308,7 +330,7 @@ class EmailService {
             </div>
             
             <p style="text-align: center;">
-              <a href="${this.baseUrl}/join?code=${data.sessionCode}" class="button">Join Session</a>
+              <a href="${this.studentPortalUrl}/join?code=${data.sessionCode}" class="button">Join Session</a>
             </p>
             
             <p>Make sure you're ready with your device and a stable internet connection!</p>

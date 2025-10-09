@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Allow Answer Change</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Test Allow Answer Change Functionality</h1>
+    
+    <div class="section">
+        <h2>1. Create Test Session</h2>
+        <input type="text" id="sessionTitle" placeholder="Session Title" value="Test Allow Answer Change">
+        <label>
+            <input type="checkbox" id="allowAnswerChange" checked>
+            Allow Answer Changes
+        </label>
+        <button onclick="createSession()">Create Session</button>
+        <div id="sessionInfo" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>2. Join Session</h2>
+        <input type="text" id="sessionCode" placeholder="Session Code">
+        <input type="text" id="participantName" placeholder="Your Name" value="Test Student">
+        <button onclick="joinSession()">Join Session</button>
+        <div id="joinInfo" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3. Submit Answer</h2>
+        <select id="answer">
+            <option value="A">Answer A</option>
+            <option value="B">Answer B</option>
+            <option value="C">Answer C</option>
+            <option value="D">Answer D</option>
+        </select>
+        <button onclick="submitAnswer()">Submit Answer</button>
+        <button onclick="changeAnswer()">Change to Next Option</button>
+        <div id="answerInfo" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>4. Check Session Details</h2>
+        <button onclick="checkSession()">Check Session</button>
+        <div id="checkInfo" class="log"></div>
+    </div>
+
+    <script>
+        const API_URL = 'https://api.intellaclick.com/api';
+        let currentSession = null;
+        let participantId = null;
+        let authToken = null;
+        
+        async function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const colorClass = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            element.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+            element.scrollTop = element.scrollHeight;
+        }
+        
+        async function createSession() {
+            try {
+                // First, login as instructor (using test credentials)
+                const loginRes = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'test@test.com',
+                        password: 'test123'
+                    })
+                });
+                
+                if (!loginRes.ok) {
+                    throw new Error('Login failed - you need to use real instructor credentials');
+                }
+                
+                const loginData = await loginRes.json();
+                authToken = loginData.token;
+                
+                // Create session
+                const title = document.getElementById('sessionTitle').value;
+                const allowAnswerChange = document.getElementById('allowAnswerChange').checked;
+                
+                const response = await fetch(`${API_URL}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-auth-token': authToken
+                    },
+                    body: JSON.stringify({
+                        sessionCode: 'TEST' + Math.floor(Math.random() * 10000),
+                        title: title,
+                        description: 'Testing allow answer change',
+                        requireLogin: false,
+                        allowAnswerChange: allowAnswerChange
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentSession = data.session;
+                    document.getElementById('sessionCode').value = data.session.sessionCode;
+                    log('sessionInfo', `Session created: ${data.session.sessionCode}`, 'success');
+                    log('sessionInfo', `Allow Answer Change: ${data.session.allowAnswerChange}`, 'info');
+                    
+                    // Send a test question
+                    await sendTestQuestion();
+                } else {
+                    log('sessionInfo', `Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('sessionInfo', `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function sendTestQuestion() {
+            try {
+                const response = await fetch(`${API_URL}/sessions/${currentSession.id}/questions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-auth-token': authToken
+                    },
+                    body: JSON.stringify({
+                        questionId: 'Q1',
+                        questionText: 'Test Question - Which answer will you choose?',
+                        questionType: 'multiple_choice',
+                        options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                        timeLimit: 300
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    log('sessionInfo', 'Test question sent', 'success');
+                }
+            } catch (error) {
+                log('sessionInfo', `Error sending question: ${error.message}`, 'error');
+            }
+        }
+        
+        async function joinSession() {
+            try {
+                const code = document.getElementById('sessionCode').value;
+                const name = document.getElementById('participantName').value;
+                
+                const response = await fetch(`${API_URL}/sessions/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionCode: code,
+                        name: name,
+                        deviceId: 'test-device-' + Date.now()
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    participantId = data.participantId;
+                    log('joinInfo', `Joined session! Participant ID: ${participantId}`, 'success');
+                    log('joinInfo', `Session allows answer changes: ${data.session.allowAnswerChange}`, 'info');
+                } else {
+                    log('joinInfo', `Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('joinInfo', `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function submitAnswer() {
+            try {
+                const code = document.getElementById('sessionCode').value;
+                const answer = document.getElementById('answer').value;
+                
+                const response = await fetch(`${API_URL}/sessions/code/${code}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        questionId: 'Q1',
+                        answer: answer,
+                        participantId: participantId
+                    })
+                });
+                
+                const data = await response.json();
+                log('answerInfo', `Response: ${JSON.stringify(data)}`, data.success ? 'success' : 'error');
+                
+                if (data.isDuplicate) {
+                    log('answerInfo', 'This is a duplicate - answer already recorded', 'info');
+                } else if (data.isUpdate) {
+                    log('answerInfo', 'Answer successfully updated!', 'success');
+                }
+            } catch (error) {
+                log('answerInfo', `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function changeAnswer() {
+            const select = document.getElementById('answer');
+            const currentIndex = select.selectedIndex;
+            select.selectedIndex = (currentIndex + 1) % select.options.length;
+            submitAnswer();
+        }
+        
+        async function checkSession() {
+            try {
+                const code = document.getElementById('sessionCode').value;
+                
+                const response = await fetch(`${API_URL}/sessions/code/${code}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('checkInfo', `Session Details:`, 'info');
+                    log('checkInfo', `- Code: ${data.session.sessionCode}`, 'info');
+                    log('checkInfo', `- Title: ${data.session.title}`, 'info');
+                    log('checkInfo', `- Allow Answer Change: ${data.session.allowAnswerChange}`, 'info');
+                    log('checkInfo', `- Response Count: ${data.session.responseCount}`, 'info');
+                    log('checkInfo', `- Participant Count: ${data.session.participantCount}`, 'info');
+                } else {
+                    log('checkInfo', `Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('checkInfo', `Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
