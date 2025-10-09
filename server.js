@@ -147,6 +147,7 @@ const unifiedEnrollmentRoutes = require('./routes/unified-enrollment');
 const syncRoutes = require('./routes/sync-mongodb');
 const debugClassesRoutes = require('./routes/debug-classes');
 const adminRoutes = require('./routes/admin');
+const setupRoutes = require('./routes/setup');
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -206,6 +207,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/debug-classes', debugClassesRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/setup', setupRoutes);
 
 // DEBUG ENDPOINTS - TEMPORARY for troubleshooting student issues
 
