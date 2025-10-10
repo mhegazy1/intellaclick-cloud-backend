@@ -4,8 +4,9 @@ const quizSchema = new mongoose.Schema({
   // Sync fields
   syncId: {
     type: String,
-    required: true,
+    required: false, // Auto-generated in pre-save hook if not provided
     unique: true,
+    sparse: true, // Allow null values in unique index
     index: true
   },
   syncVersion: {
