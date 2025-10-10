@@ -307,4 +307,54 @@ router.get('/stats', auth, isAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/verify-student-email - Manually verify a student's email
+router.post('/verify-student-email', auth, isAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const student = await Student.findOne({ email: email.toLowerCase() });
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    if (student.verification?.emailVerified) {
+      return res.json({
+        success: true,
+        message: 'Email is already verified',
+        student: {
+          email: student.email,
+          name: `${student.profile?.firstName} ${student.profile?.lastName}`,
+          verified: true
+        }
+      });
+    }
+
+    // Verify the email
+    if (!student.verification) {
+      student.verification = {};
+    }
+    student.verification.emailVerified = true;
+    student.verification.verifiedAt = new Date();
+    await student.save();
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully',
+      student: {
+        email: student.email,
+        name: `${student.profile?.firstName} ${student.profile?.lastName}`,
+        verified: true
+      }
+    });
+  } catch (error) {
+    console.error('Error verifying email:', error);
+    res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
 module.exports = router;
