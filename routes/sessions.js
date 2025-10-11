@@ -410,6 +410,7 @@ router.get('/code/:sessionCode', async (req, res) => {
         currentQuestion: session.currentQuestion,
         participantCount: session.participants.length,
         responseCount: session.responses ? session.responses.length : 0,
+        responses: session.responses || [], // Include actual responses for live display
         totalQuestions: session.totalQuestions || 0,
         questionCount: session.questionsSent ? session.questionsSent.length : 0,
         requireLogin: requireLogin,
@@ -913,12 +914,13 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
           sessionId: session._id,
           questionText: session.currentQuestion.questionText || session.currentQuestion.text,  // Support both fields
           type: session.currentQuestion.questionType || session.currentQuestion.type,
-          options: session.currentQuestion.options && session.currentQuestion.options.length > 0 
+          options: session.currentQuestion.options && session.currentQuestion.options.length > 0
             ? session.currentQuestion.options.map((opt, idx) => ({
                 id: String.fromCharCode(65 + idx), // A, B, C, D
                 text: opt
               }))
             : [],
+          correctAnswer: session.currentQuestion.correctAnswer,  // Include for display view to show correct answer
           points: session.currentQuestion.points || 10,
           timeLimit: session.currentQuestion.timeLimit || 30,
           startedAt: session.currentQuestion.startedAt
