@@ -80,11 +80,11 @@ const quizSchema = new mongoose.Schema({
     points: Number,
     // Store question snapshot for consistency
     questionSnapshot: {
-      questionText: String,
-      type: String,
-      options: [String],
-      correctAnswer: mongoose.Schema.Types.Mixed,
-      explanation: String
+      questionText: { type: String, required: false },
+      questionType: { type: String, required: false },  // Renamed from 'type' to avoid Mongoose conflict
+      options: { type: [String], required: false },
+      correctAnswer: { type: mongoose.Schema.Types.Mixed, required: false },
+      explanation: { type: String, required: false }
     }
   }],
   
