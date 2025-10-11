@@ -1071,14 +1071,18 @@ router.post('/:id/questions', auth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Unauthorized' });
     }
     
-    const { questionId, questionText, questionType, options, correctAnswer, points, timeLimit, text, type } = req.body;
-    
+    const { questionId, questionText, questionType, options, optionTexts, correctAnswer, points, timeLimit, text, type } = req.body;
+
     // Create question object with field normalization
+    // Use optionTexts if available (actual answer text), otherwise fall back to options
+    const questionOptions = optionTexts && optionTexts.length > 0 ? optionTexts : options;
+
     const question = {
       questionId: questionId || `Q${Date.now()}`,
       questionText: questionText || text,  // Support both field names
       questionType: questionType || type || 'multiple_choice',  // Support both field names
-      options,
+      options: questionOptions,  // Use actual text, not just letters
+      optionLetters: options,  // Store the letters for reference
       correctAnswer: normalizeCorrectAnswer(correctAnswer, questionType || type || 'multiple_choice', options),
       points: points || 10,
       timeLimit: timeLimit || 30,
