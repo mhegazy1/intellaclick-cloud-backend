@@ -66,7 +66,18 @@ const sessionSchema = new mongoose.Schema({
     correctAnswer: mongoose.Schema.Types.Mixed, // Changed from String to Mixed
     points: { type: Number, default: 10 },
     timeLimit: { type: Number, default: 30 },
-    startedAt: Date
+    startedAt: Date,
+    // Matching question fields
+    pairs: [{
+      left: String,
+      right: String
+    }],
+    leftColumn: [String],
+    rightColumn: [String],
+    correctPairs: mongoose.Schema.Types.Mixed,
+    // Ordering question fields
+    items: [String],
+    correctOrder: [String]
   },
   // NEW: Track all questions asked in the session for scoring
   questions: [{
@@ -78,7 +89,18 @@ const sessionSchema = new mongoose.Schema({
     points: { type: Number, default: 10 },
     timeLimit: { type: Number, default: 30 },
     startedAt: Date,
-    endedAt: Date
+    endedAt: Date,
+    // Matching question fields
+    pairs: [{
+      left: String,
+      right: String
+    }],
+    leftColumn: [String],
+    rightColumn: [String],
+    correctPairs: mongoose.Schema.Types.Mixed,
+    // Ordering question fields
+    items: [String],
+    correctOrder: [String]
   }],
   participants: [{
     userId: {
