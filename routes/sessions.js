@@ -2397,4 +2397,40 @@ router.post('/:id/end', auth, async (req, res) => {
   }
 });
 
+// Get a single session by ID with full details (for session history view)
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const instructorId = req.user.userId || req.user.id;
+    const sessionId = req.params.id;
+
+    console.log(`[Sessions] GET /:id - Loading session ${sessionId} for instructor ${instructorId}`);
+
+    const session = await Session.findOne({
+      _id: sessionId,
+      instructorId: instructorId
+    }).lean();
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    console.log(`[Sessions] Found session: ${session.title}, participants: ${session.participants?.length || 0}, questions: ${session.questions?.length || 0}, responses: ${session.responses?.length || 0}`);
+
+    res.json({
+      success: true,
+      session: session
+    });
+
+  } catch (error) {
+    console.error('[Sessions] Error loading session:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
