@@ -925,6 +925,17 @@ router.get('/code/:sessionCode/current-question', async (req, res) => {
           timeLimit: session.currentQuestion.timeLimit || 30,
           startedAt: session.currentQuestion.startedAt
         };
+
+        // Add matching question fields if present
+        if (session.currentQuestion.pairs) question.pairs = session.currentQuestion.pairs;
+        if (session.currentQuestion.leftColumn) question.leftColumn = session.currentQuestion.leftColumn;
+        if (session.currentQuestion.rightColumn) question.rightColumn = session.currentQuestion.rightColumn;
+        if (session.currentQuestion.correctPairs) question.correctPairs = session.currentQuestion.correctPairs;
+
+        // Add ordering question fields if present
+        if (session.currentQuestion.items) question.items = session.currentQuestion.items;
+        if (session.currentQuestion.correctOrder) question.correctOrder = session.currentQuestion.correctOrder;
+
         console.log('[Sessions] Transformed question:', JSON.stringify(question, null, 2));
       } catch (transformError) {
         console.error('[Sessions] Error transforming question:', transformError);
