@@ -1073,7 +1073,14 @@ router.post('/:id/questions', auth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Unauthorized' });
     }
     
-    const { questionId, questionText, questionType, options, optionTexts, correctAnswer, points, timeLimit, text, type } = req.body;
+    const {
+      questionId, questionText, questionType, options, optionTexts, correctAnswer,
+      points, timeLimit, text, type,
+      // Matching question fields
+      pairs, leftColumn, rightColumn, correctPairs,
+      // Ordering question fields
+      items, correctOrder
+    } = req.body;
 
     // Create question object with field normalization
     // Use optionTexts if available (actual answer text), otherwise fall back to options
@@ -1090,6 +1097,16 @@ router.post('/:id/questions', auth, async (req, res) => {
       timeLimit: timeLimit || 30,
       startedAt: new Date()
     };
+
+    // Add matching question specific fields
+    if (pairs) question.pairs = pairs;
+    if (leftColumn) question.leftColumn = leftColumn;
+    if (rightColumn) question.rightColumn = rightColumn;
+    if (correctPairs) question.correctPairs = correctPairs;
+
+    // Add ordering question specific fields
+    if (items) question.items = items;
+    if (correctOrder) question.correctOrder = correctOrder;
     
     // Ensure questionText is set
     if (!question.questionText) {
