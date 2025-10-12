@@ -130,6 +130,7 @@ app.get('/api/request-stats', (req, res) => {
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const questionRoutes = require('./routes/questions');
+const questionSetsRoutes = require('./routes/question-sets');
 const categoryRoutes = require('./routes/categories');
 const quizRoutes = require('./routes/quizzes');
 const sessionRoutes = require('./routes/sessions');
@@ -193,6 +194,7 @@ app.use('/api/classes', classesRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/unified-enrollment', unifiedEnrollmentRoutes);
 app.use('/api/questions', questionRoutes);
+app.use('/api/question-sets', questionSetsRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/sessions', sessionRoutes);
