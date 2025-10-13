@@ -636,4 +636,208 @@ router.post('/cleanup-duplicates', async (req, res) => {
   }
 });
 
+// Get leaderboard for instructor (all classes)
+router.get('/leaderboard/instructor/:instructorId', async (req, res) => {
+  try {
+    const { instructorId } = req.params;
+    const { classId } = req.query;
+
+    console.log(`[Gamification] Fetching leaderboard for instructor: ${instructorId}${classId ? `, class: ${classId}` : ''}`);
+
+    // Build query
+    let query = { instructorId };
+    if (classId) {
+      query.classId = classId;
+    }
+
+    // Get all players for this instructor
+    const players = await GamificationPlayer.find(query)
+      .sort({ totalPoints: -1 })
+      .limit(100);
+
+    console.log(`[Gamification] Found ${players.length} players`);
+
+    // Format leaderboard data
+    const leaderboard = players.map(player => ({
+      playerId: player.playerId,
+      name: player.name || 'Student',
+      totalPoints: player.totalPoints || 0,
+      level: player.level || 1,
+      achievementCount: player.achievements?.length || 0,
+      experiencePoints: player.experience || 0,
+      nextLevelXP: calculateNextLevelXP(player.level || 1)
+    }));
+
+    res.json({
+      success: true,
+      leaderboard
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching leaderboard:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get leaderboard for specific class
+router.get('/leaderboard/class/:classId', async (req, res) => {
+  try {
+    const { classId } = req.params;
+
+    console.log(`[Gamification] Fetching leaderboard for class: ${classId}`);
+
+    const players = await GamificationPlayer.find({ classId })
+      .sort({ totalPoints: -1 })
+      .limit(100);
+
+    console.log(`[Gamification] Found ${players.length} players`);
+
+    const leaderboard = players.map(player => ({
+      playerId: player.playerId,
+      name: player.name || 'Student',
+      totalPoints: player.totalPoints || 0,
+      level: player.level || 1,
+      achievementCount: player.achievements?.length || 0
+    }));
+
+    res.json({
+      success: true,
+      leaderboard
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching class leaderboard:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get recent achievements
+router.get('/achievements/recent', async (req, res) => {
+  try {
+    const { instructorId, classId, limit = 10 } = req.query;
+
+    console.log(`[Gamification] Fetching recent achievements`);
+
+    // Build query
+    let query = {};
+    if (instructorId) query.instructorId = instructorId;
+    if (classId) query.classId = classId;
+
+    // Find players with achievements
+    const players = await GamificationPlayer.find({
+      ...query,
+      'achievements.0': { $exists: true }
+    }).limit(50);
+
+    // Extract and sort achievements
+    const allAchievements = [];
+    players.forEach(player => {
+      player.achievements?.forEach(ach => {
+        allAchievements.push({
+          ...ach.toObject(),
+          studentName: player.name || 'Student',
+          playerId: player.playerId
+        });
+      });
+    });
+
+    // Sort by unlock date and limit
+    allAchievements.sort((a, b) =>
+      new Date(b.unlockedAt) - new Date(a.unlockedAt)
+    );
+
+    const recentAchievements = allAchievements.slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      achievements: recentAchievements
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching recent achievements:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get available achievements
+router.get('/achievements/available', async (req, res) => {
+  try {
+    console.log(`[Gamification] Fetching available achievements`);
+
+    // Return predefined achievements
+    const achievements = [
+      {
+        id: 'first_answer',
+        name: 'First Answer',
+        description: 'Answer your first question',
+        icon: '🎯',
+        color: '#4F46E5'
+      },
+      {
+        id: 'perfect_score',
+        name: 'Perfect Score',
+        description: 'Get all questions correct in a session',
+        icon: '💯',
+        color: '#10B981'
+      },
+      {
+        id: 'speed_demon',
+        name: 'Speed Demon',
+        description: 'Answer within 3 seconds 10 times',
+        icon: '⚡',
+        color: '#F59E0B'
+      },
+      {
+        id: 'consistent',
+        name: 'Consistent',
+        description: 'Maintain a 5-question streak',
+        icon: '🔥',
+        color: '#EF4444'
+      },
+      {
+        id: 'team_player',
+        name: 'Team Player',
+        description: 'Participate in 10 sessions',
+        icon: '🤝',
+        color: '#8B5CF6'
+      },
+      {
+        id: 'knowledge_master',
+        name: 'Knowledge Master',
+        description: 'Reach level 10',
+        icon: '🧠',
+        color: '#EC4899'
+      }
+    ];
+
+    res.json({
+      success: true,
+      achievements
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fetching available achievements:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Helper function to calculate next level XP
+function calculateNextLevelXP(level) {
+  const baseXP = 100;
+  const multiplier = 1.5;
+  return Math.floor(baseXP * Math.pow(multiplier, level - 1));
+}
+
 module.exports = router;
