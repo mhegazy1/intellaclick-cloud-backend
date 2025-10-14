@@ -2433,4 +2433,51 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// DELETE session by ID
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const instructorId = req.user?.id;
+
+    console.log(`[Sessions] DELETE /:id called for session ${sessionId} by user ${instructorId}`);
+
+    // Find the session
+    const session = await Session.findById(sessionId);
+
+    if (!session) {
+      console.log(`[Sessions] Session ${sessionId} not found`);
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    // Verify the user is the instructor who created this session
+    if (session.instructorId && session.instructorId.toString() !== instructorId) {
+      console.log(`[Sessions] Permission denied: User ${instructorId} tried to delete session owned by ${session.instructorId}`);
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to delete this session'
+      });
+    }
+
+    // Delete the session
+    await Session.deleteOne({ _id: sessionId });
+    console.log(`[Sessions] Successfully deleted session ${sessionId} (code: ${session.sessionCode})`);
+
+    res.json({
+      success: true,
+      message: 'Session deleted successfully',
+      sessionId: sessionId
+    });
+
+  } catch (error) {
+    console.error('[Sessions] Error deleting session:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to delete session'
+    });
+  }
+});
+
 module.exports = router;
