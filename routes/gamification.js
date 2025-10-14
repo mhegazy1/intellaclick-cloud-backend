@@ -881,7 +881,15 @@ router.post('/sync-session/:sessionId', async (req, res) => {
       stats.questionsAnswered++;
 
       // Calculate points for this response
-      const points = response.points || response.score || 0;
+      let points = response.points || response.score;
+
+      // If no points field, calculate from correctness
+      if (points === undefined || points === null) {
+        const isCorrect = String(response.answer).toLowerCase().trim() ===
+                         String(response.correctAnswer).toLowerCase().trim();
+        points = isCorrect ? 10 : 0; // Award 10 points for correct answers
+      }
+
       stats.totalPoints += points;
 
       if (points > 0) {
@@ -1023,7 +1031,16 @@ router.post('/sync-instructor-sessions/:instructorId', async (req, res) => {
         const stats = participantStats.get(participantId);
         stats.questionsAnswered++;
 
-        const points = response.points || response.score || 0;
+        // Calculate points for this response
+        let points = response.points || response.score;
+
+        // If no points field, calculate from correctness
+        if (points === undefined || points === null) {
+          const isCorrect = String(response.answer).toLowerCase().trim() ===
+                           String(response.correctAnswer).toLowerCase().trim();
+          points = isCorrect ? 10 : 0; // Award 10 points for correct answers
+        }
+
         stats.totalPoints += points;
 
         if (points > 0) {
