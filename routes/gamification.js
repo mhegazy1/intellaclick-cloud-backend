@@ -1071,6 +1071,10 @@ router.post('/sync-instructor-sessions/:instructorId', async (req, res) => {
           });
         }
 
+        // Always update instructorId and classId (in case they were missing or wrong)
+        if (!player.instructorId) player.instructorId = session.instructorId;
+        if (!player.classId) player.classId = session.classId;
+
         player.totalPoints += stats.totalPoints;
         player.experience += stats.totalPoints;
         player.stats.questionsAnswered += stats.questionsAnswered;
