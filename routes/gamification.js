@@ -833,6 +833,277 @@ router.get('/achievements/available', async (req, res) => {
   }
 });
 
+// Sync session data to gamification system
+router.post('/sync-session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const Session = require('../models/Session');
+
+    console.log(`[Gamification] Syncing session ${sessionId} to gamification system`);
+
+    // Load session
+    const session = await Session.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    const { instructorId, classId, participants = [], responses = [], questions = [] } = session;
+
+    if (!classId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session must be linked to a class for gamification'
+      });
+    }
+
+    // Group responses by participant
+    const participantStats = new Map();
+
+    responses.forEach(response => {
+      const participantId = response.participantId;
+      if (!participantId) return;
+
+      if (!participantStats.has(participantId)) {
+        const participant = participants.find(p => p.participantId === participantId);
+        participantStats.set(participantId, {
+          name: participant?.name || 'Student',
+          totalPoints: 0,
+          correctAnswers: 0,
+          questionsAnswered: 0,
+          responses: []
+        });
+      }
+
+      const stats = participantStats.get(participantId);
+      stats.questionsAnswered++;
+
+      // Calculate points for this response
+      const points = response.points || response.score || 0;
+      stats.totalPoints += points;
+
+      if (points > 0) {
+        stats.correctAnswers++;
+      }
+
+      stats.responses.push(response);
+    });
+
+    // Create or update GamificationPlayer records
+    const syncResults = [];
+
+    for (const [participantId, stats] of participantStats) {
+      // Find or create player
+      let player = await GamificationPlayer.findOne({ playerId: participantId });
+
+      if (!player) {
+        player = new GamificationPlayer({
+          playerId: participantId,
+          name: stats.name,
+          instructorId,
+          classId,
+          level: 1,
+          totalPoints: 0,
+          experience: 0,
+          stats: {
+            questionsAnswered: 0,
+            correctAnswers: 0,
+            accuracy: 0,
+            bestStreak: 0,
+            currentStreak: 0
+          },
+          achievements: [],
+          badges: []
+        });
+      }
+
+      // Update stats
+      player.totalPoints += stats.totalPoints;
+      player.experience += stats.totalPoints;
+      player.stats.questionsAnswered += stats.questionsAnswered;
+      player.stats.correctAnswers += stats.correctAnswers;
+
+      // Recalculate accuracy
+      if (player.stats.questionsAnswered > 0) {
+        player.stats.accuracy = Math.round((player.stats.correctAnswers / player.stats.questionsAnswered) * 100);
+      }
+
+      // Calculate level based on total points
+      player.level = calculateLevel(player.totalPoints);
+
+      // Ensure instructorId and classId are set
+      if (!player.instructorId) player.instructorId = instructorId;
+      if (!player.classId) player.classId = classId;
+
+      player.lastActive = new Date();
+
+      await player.save();
+
+      syncResults.push({
+        participantId,
+        name: player.name,
+        pointsAdded: stats.totalPoints,
+        newTotalPoints: player.totalPoints,
+        newLevel: player.level
+      });
+    }
+
+    console.log(`[Gamification] Synced ${syncResults.length} players from session ${sessionId}`);
+
+    res.json({
+      success: true,
+      message: `Synced ${syncResults.length} players`,
+      sessionId,
+      results: syncResults
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error syncing session:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Sync all sessions for an instructor
+router.post('/sync-instructor-sessions/:instructorId', async (req, res) => {
+  try {
+    const { instructorId } = req.params;
+    const { days = 30, classId } = req.query;
+    const Session = require('../models/Session');
+
+    console.log(`[Gamification] Syncing sessions for instructor ${instructorId}`);
+
+    // Find sessions from the last N days
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const query = {
+      instructorId,
+      createdAt: { $gte: since },
+      responses: { $exists: true, $ne: [] }
+    };
+
+    if (classId) {
+      query.classId = classId;
+    }
+
+    const sessions = await Session.find(query);
+
+    console.log(`[Gamification] Found ${sessions.length} sessions to sync`);
+
+    const allResults = [];
+    let totalPlayersSynced = 0;
+
+    for (const session of sessions) {
+      const { participants = [], responses = [] } = session;
+
+      if (!session.classId) continue;
+
+      // Group responses by participant
+      const participantStats = new Map();
+
+      responses.forEach(response => {
+        const participantId = response.participantId;
+        if (!participantId) return;
+
+        if (!participantStats.has(participantId)) {
+          const participant = participants.find(p => p.participantId === participantId);
+          participantStats.set(participantId, {
+            name: participant?.name || 'Student',
+            totalPoints: 0,
+            correctAnswers: 0,
+            questionsAnswered: 0
+          });
+        }
+
+        const stats = participantStats.get(participantId);
+        stats.questionsAnswered++;
+
+        const points = response.points || response.score || 0;
+        stats.totalPoints += points;
+
+        if (points > 0) {
+          stats.correctAnswers++;
+        }
+      });
+
+      // Update players
+      for (const [participantId, stats] of participantStats) {
+        let player = await GamificationPlayer.findOne({ playerId: participantId });
+
+        if (!player) {
+          player = new GamificationPlayer({
+            playerId: participantId,
+            name: stats.name,
+            instructorId: session.instructorId,
+            classId: session.classId,
+            level: 1,
+            totalPoints: 0,
+            experience: 0,
+            stats: {
+              questionsAnswered: 0,
+              correctAnswers: 0,
+              accuracy: 0,
+              bestStreak: 0,
+              currentStreak: 0
+            }
+          });
+        }
+
+        player.totalPoints += stats.totalPoints;
+        player.experience += stats.totalPoints;
+        player.stats.questionsAnswered += stats.questionsAnswered;
+        player.stats.correctAnswers += stats.correctAnswers;
+
+        if (player.stats.questionsAnswered > 0) {
+          player.stats.accuracy = Math.round((player.stats.correctAnswers / player.stats.questionsAnswered) * 100);
+        }
+
+        player.level = calculateLevel(player.totalPoints);
+        player.lastActive = new Date();
+
+        await player.save();
+        totalPlayersSynced++;
+      }
+
+      allResults.push({
+        sessionId: session._id,
+        sessionCode: session.sessionCode,
+        playersSynced: participantStats.size
+      });
+    }
+
+    console.log(`[Gamification] Synced ${totalPlayersSynced} player records from ${sessions.length} sessions`);
+
+    res.json({
+      success: true,
+      message: `Synced ${totalPlayersSynced} players from ${sessions.length} sessions`,
+      sessionsSynced: sessions.length,
+      totalPlayersSynced,
+      sessions: allResults
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error syncing instructor sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Helper function to calculate level from total points
+function calculateLevel(totalPoints) {
+  // Level formula: level = 1 + floor(sqrt(points / 100))
+  // This means: Level 1 = 0-99 points, Level 2 = 100-399, Level 3 = 400-899, etc.
+  const level = 1 + Math.floor(Math.sqrt(totalPoints / 100));
+  return Math.max(1, level);
+}
+
 // Helper function to calculate next level XP
 function calculateNextLevelXP(level) {
   const baseXP = 100;
