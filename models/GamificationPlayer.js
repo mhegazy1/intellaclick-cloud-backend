@@ -32,6 +32,14 @@ const GamificationPlayerSchema = new mongoose.Schema({
     type: String,
     index: true
   },
+  instructorId: {
+    type: String,
+    index: true
+  },
+  classId: {
+    type: String,
+    index: true
+  },
 
   // Current stats
   level: {
