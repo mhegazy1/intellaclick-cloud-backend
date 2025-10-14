@@ -1096,6 +1096,44 @@ router.post('/sync-instructor-sessions/:instructorId', async (req, res) => {
   }
 });
 
+// Fix instructorId for all players in a class
+router.post('/fix-instructor-id/:classId', async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const { correctInstructorId } = req.body;
+
+    if (!correctInstructorId) {
+      return res.status(400).json({
+        success: false,
+        error: 'correctInstructorId is required in request body'
+      });
+    }
+
+    console.log(`[Gamification] Fixing instructorId for class ${classId} to ${correctInstructorId}`);
+
+    // Update all players in this class
+    const result = await GamificationPlayer.updateMany(
+      { classId },
+      { $set: { instructorId: correctInstructorId } }
+    );
+
+    console.log(`[Gamification] Updated ${result.modifiedCount} players`);
+
+    res.json({
+      success: true,
+      message: `Updated instructorId for ${result.modifiedCount} players`,
+      modifiedCount: result.modifiedCount
+    });
+
+  } catch (error) {
+    console.error('[Gamification] Error fixing instructorId:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Helper function to calculate level from total points
 function calculateLevel(totalPoints) {
   // Level formula: level = 1 + floor(sqrt(points / 100))
