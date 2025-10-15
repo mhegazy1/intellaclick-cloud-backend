@@ -58,6 +58,12 @@ const sessionSchema = new mongoose.Schema({
     required: false,
     description: 'Whether students can change their answer while the question is still active'
   },
+  showCorrectAnswer: {
+    type: Boolean,
+    default: true,
+    required: false,
+    description: 'Whether to show the correct answer when a question ends'
+  },
   currentQuestion: {
     questionId: String,
     questionText: String,
