@@ -52,6 +52,13 @@ const userSchema = new mongoose.Schema({
   resetPasswordExpires: {
     type: Date,
     select: false
+  },
+  sessionSettings: {
+    allowAnonymous: { type: Boolean, default: false },
+    openToAll: { type: Boolean, default: false },
+    allowAnswerChange: { type: Boolean, default: false },
+    showCorrectAnswer: { type: Boolean, default: true },
+    enableGamification: { type: Boolean, default: true }
   }
 }, {
   timestamps: true // This automatically adds createdAt and updatedAt fields
