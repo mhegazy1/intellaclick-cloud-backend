@@ -22,7 +22,7 @@ router.get('/session-settings', auth, async (req, res) => {
       allowAnonymous: false,
       openToAll: false,
       allowAnswerChange: false,
-      showCorrectAnswer: true,
+      showCorrectAnswer: false,
       enableGamification: true
     };
 
@@ -49,7 +49,7 @@ router.put('/session-settings', auth, async (req, res) => {
       allowAnonymous: allowAnonymous !== undefined ? allowAnonymous : false,
       openToAll: openToAll !== undefined ? openToAll : false,
       allowAnswerChange: allowAnswerChange !== undefined ? allowAnswerChange : false,
-      showCorrectAnswer: showCorrectAnswer !== undefined ? showCorrectAnswer : true,
+      showCorrectAnswer: showCorrectAnswer !== undefined ? showCorrectAnswer : false,
       enableGamification: enableGamification !== undefined ? enableGamification : true
     };
 

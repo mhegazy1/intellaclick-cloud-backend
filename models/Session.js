@@ -60,7 +60,7 @@ const sessionSchema = new mongoose.Schema({
   },
   showCorrectAnswer: {
     type: Boolean,
-    default: true,
+    default: false,
     required: false,
     description: 'Whether to show the correct answer when a question ends'
   },

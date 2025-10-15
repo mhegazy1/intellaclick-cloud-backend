@@ -57,7 +57,7 @@ const userSchema = new mongoose.Schema({
     allowAnonymous: { type: Boolean, default: false },
     openToAll: { type: Boolean, default: false },
     allowAnswerChange: { type: Boolean, default: false },
-    showCorrectAnswer: { type: Boolean, default: true },
+    showCorrectAnswer: { type: Boolean, default: false },
     enableGamification: { type: Boolean, default: true }
   }
 }, {
