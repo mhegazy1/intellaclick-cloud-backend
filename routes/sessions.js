@@ -179,8 +179,8 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange, gamification } = req.body;
-    
+    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange, showCorrectAnswer, gamification } = req.body;
+
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
     console.log('[Sessions] - title:', title);
@@ -188,6 +188,7 @@ router.post('/', auth, async (req, res) => {
     console.log('[Sessions] - classId:', classId);
     console.log('[Sessions] - restrictToEnrolled:', restrictToEnrolled);
     console.log('[Sessions] - allowAnswerChange:', allowAnswerChange);
+    console.log('[Sessions] - showCorrectAnswer:', showCorrectAnswer);
     console.log('[Sessions] - User:', req.user);
     
     // Check if session code already exists
@@ -235,7 +236,10 @@ router.post('/', auth, async (req, res) => {
     
     // Set allowAnswerChange with proper boolean conversion
     sessionData.allowAnswerChange = allowAnswerChange === true || allowAnswerChange === 'true' || allowAnswerChange === 1 || allowAnswerChange === '1';
-    
+
+    // Set showCorrectAnswer with proper boolean conversion
+    sessionData.showCorrectAnswer = showCorrectAnswer === true || showCorrectAnswer === 'true' || showCorrectAnswer === 1 || showCorrectAnswer === '1';
+
     // Set gamification settings if provided
     if (gamification) {
       sessionData.gamification = gamification;
@@ -282,6 +286,7 @@ router.post('/', auth, async (req, res) => {
         requireLogin: session.requireLogin,
         restrictToEnrolled: session.restrictToEnrolled,
         allowAnswerChange: session.allowAnswerChange,
+        showCorrectAnswer: session.showCorrectAnswer,
         classId: session.classId,
         gamification: session.gamification,
         publicUrl: `https://join.intellaclick.com/session/${session.sessionCode}`
@@ -416,6 +421,7 @@ router.get('/code/:sessionCode', async (req, res) => {
         requireLogin: requireLogin,
         restrictToEnrolled: session.restrictToEnrolled,
         allowAnswerChange: session.allowAnswerChange,
+        showCorrectAnswer: session.showCorrectAnswer,
         classId: session.classId
       }
     });
