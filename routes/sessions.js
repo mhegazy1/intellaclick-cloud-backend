@@ -15,13 +15,65 @@ router.use((req, res, next) => {
 
 // Health check endpoint
 router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     message: 'Sessions API is running',
-    version: '2025-09-05-requireLogin-fix',
+    version: '2025-10-15-null-answer-debug',
     debugEnabled: true
   });
+});
+
+// Debug endpoint to check answers in a specific session
+router.get('/debug-answers/:sessionCode', async (req, res) => {
+  try {
+    const { sessionCode } = req.params;
+    const session = await Session.findOne({ sessionCode: sessionCode.toUpperCase() });
+
+    if (!session) {
+      return res.json({ error: 'Session not found' });
+    }
+
+    const analysis = {
+      sessionCode: session.sessionCode,
+      title: session.title,
+      totalResponses: session.responses?.length || 0,
+      totalQuestions: session.questions?.length || 0,
+      nullAnswers: 0,
+      validAnswers: 0,
+      answerTypes: {},
+      sampleResponses: []
+    };
+
+    (session.responses || []).forEach((r, i) => {
+      const answerType = typeof r.answer;
+      analysis.answerTypes[answerType] = (analysis.answerTypes[answerType] || 0) + 1;
+
+      if (r.answer === null || r.answer === undefined) {
+        analysis.nullAnswers++;
+      } else {
+        analysis.validAnswers++;
+      }
+
+      // Add first 10 responses as samples
+      if (i < 10) {
+        analysis.sampleResponses.push({
+          questionId: r.questionId,
+          participantId: r.participantId,
+          answer: r.answer,
+          answerType: answerType,
+          isNull: r.answer === null,
+          isUndefined: r.answer === undefined,
+          submittedAt: r.submittedAt
+        });
+      }
+    });
+
+    res.json(analysis);
+  } catch (error) {
+    console.error('Debug answers error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Test endpoint - returns hardcoded question
@@ -1518,13 +1570,31 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
   try {
     const { questionId, answer, timeSpent, participantId } = req.body;
     const sessionCode = req.params.sessionCode.toUpperCase();
-    
-    console.log('[Sessions] Response submission:', {
+
+    // ENHANCED LOGGING FOR NULL ANSWER BUG
+    console.log('[Sessions] Response submission DETAILED:', {
       sessionCode,
       questionId,
       answer,
-      participantId
+      answerType: typeof answer,
+      answerIsNull: answer === null,
+      answerIsUndefined: answer === undefined,
+      answerValue: JSON.stringify(answer),
+      participantId,
+      fullBody: JSON.stringify(req.body)
     });
+
+    // WARNING: Log null answers but don't reject (front-end fix should prevent them)
+    if (answer === null || answer === undefined) {
+      console.warn('[Sessions] ⚠️⚠️⚠️ NULL/UNDEFINED ANSWER STILL DETECTED:', {
+        sessionCode,
+        questionId,
+        participantId,
+        timestamp: new Date().toISOString(),
+        fullBody: req.body,
+        message: 'This should not happen after the front-end fix! Investigate!'
+      });
+    }
     
     // Find ALL sessions with this code
     const sessions = await Session.find({ sessionCode });
@@ -1623,11 +1693,17 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
       submittedAt: new Date(),
       ...questionContext  // Include question context for scoring
     };
-    
-    console.log('[Sessions] Response recorded:', {
+
+    // ENHANCED LOGGING FOR NULL ANSWER BUG
+    console.log('[Sessions] Response object before save:', {
       questionId,
+      answer: response.answer,
+      answerType: typeof response.answer,
+      answerIsNull: response.answer === null,
+      answerValue: JSON.stringify(response.answer),
       hasCorrectAnswer: response.correctAnswer !== undefined,
-      correctAnswer: response.correctAnswer
+      correctAnswer: response.correctAnswer,
+      fullResponse: JSON.stringify(response)
     });
     
     console.log('[Sessions] Adding response to session');
