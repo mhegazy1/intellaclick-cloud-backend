@@ -95,7 +95,7 @@ const authLimiter = rateLimit({
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000 // limit each IP to 1000 requests per windowMs
+  max: 5000 // Increased from 1000 to support multiple back-to-back sessions
 });
 
 // Student polling needs much higher limits
