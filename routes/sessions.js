@@ -709,34 +709,52 @@ router.post('/join', async (req, res) => {
 
       // Check if enrolled (for tracking purposes)
       let isEnrolled = false;
+      let enrollmentRecord = null;
       if (userId) {
         const ClassEnrollment = require('../models/ClassEnrollment');
-        
+
         if (effectiveClassId) {
           // Check enrollment in specific class
-          const enrollment = await ClassEnrollment.findOne({
+          enrollmentRecord = await ClassEnrollment.findOne({
             classId: effectiveClassId,
             studentId: userId,
             status: { $in: ['enrolled', 'pending'] }
           });
-          isEnrolled = !!enrollment;
+          isEnrolled = !!enrollmentRecord;
         } else {
           // Check enrollment in any instructor's class
           const Class = require('../models/Class');
           const instructorClasses = await Class.find({ instructorId: session.instructorId });
           const classIds = instructorClasses.map(c => c._id);
-          
+
           if (classIds.length > 0) {
-            const enrollment = await ClassEnrollment.findOne({
+            enrollmentRecord = await ClassEnrollment.findOne({
               classId: { $in: classIds },
               studentId: userId,
               status: { $in: ['enrolled', 'pending'] }
             });
-            isEnrolled = !!enrollment;
+            isEnrolled = !!enrollmentRecord;
+          }
+        }
+
+        // Update enrollment stats when enrolled student joins session
+        if (enrollmentRecord) {
+          try {
+            enrollmentRecord.stats.sessionsAttended += 1;
+            enrollmentRecord.stats.lastAttendanceDate = new Date();
+            enrollmentRecord.lastActivityAt = new Date();
+            await enrollmentRecord.save();
+            console.log('[Sessions] Updated attendance stats:', {
+              studentId: userId,
+              sessionsAttended: enrollmentRecord.stats.sessionsAttended
+            });
+          } catch (statError) {
+            console.error('[Sessions] Error updating attendance stats:', statError);
+            // Don't fail the join if stats update fails
           }
         }
       }
-      
+
       // Add new participant to session
       session.participants.push({
         userId: userId || null,
@@ -1711,14 +1729,51 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
     
     console.log('[Sessions] Saving session with response');
     await session.save();
-    
+
+    // CRITICAL: Update ClassEnrollment stats for student participation
+    const ClassEnrollment = require('../models/ClassEnrollment');
+    if (req.user && req.user.userId && session.classId) {
+      try {
+        const enrollment = await ClassEnrollment.findOne({
+          studentId: req.user.userId,
+          classId: session.classId,
+          status: 'enrolled'
+        });
+
+        if (enrollment) {
+          // Increment questions answered
+          enrollment.stats.questionsAnswered += 1;
+
+          // Check if answer is correct
+          const isCorrect = response.correctAnswer !== undefined &&
+                           String(answer).toLowerCase().trim() === String(response.correctAnswer).toLowerCase().trim();
+          if (isCorrect) {
+            enrollment.stats.correctAnswers += 1;
+          }
+
+          // Update last activity
+          enrollment.lastActivityAt = new Date();
+
+          await enrollment.save();
+          console.log('[Sessions] Updated enrollment stats:', {
+            studentId: req.user.userId,
+            questionsAnswered: enrollment.stats.questionsAnswered,
+            correctAnswers: enrollment.stats.correctAnswers
+          });
+        }
+      } catch (statError) {
+        console.error('[Sessions] Error updating enrollment stats:', statError);
+        // Don't fail the response if stats update fails
+      }
+    }
+
     // Verify the save worked
     const updatedSession = await Session.findById(session._id);
     console.log('[Sessions] Session after response save:', {
       responseCount: updatedSession.responses?.length || 0,
       lastResponse: updatedSession.responses?.[updatedSession.responses.length - 1]
     });
-    
+
     // Get the last response which will have the generated _id
     const savedResponse = session.responses[session.responses.length - 1];
     
