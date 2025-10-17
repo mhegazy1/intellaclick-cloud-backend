@@ -208,6 +208,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/debug-classes', debugClassesRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin-debug', require('./routes/admin-debug'));
 
 // DEBUG ENDPOINTS - TEMPORARY for troubleshooting student issues
 
