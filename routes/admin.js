@@ -359,6 +359,127 @@ router.post('/verify-student-email', auth, isAdmin, async (req, res) => {
 });
 
 /**
+ * Backfill enrollment stats from existing session data (Simple Auth)
+ * GET /api/admin/backfill-enrollment-stats-simple?secret=BACKFILL2025
+ */
+router.get('/backfill-enrollment-stats-simple', async (req, res) => {
+  try {
+    // Simple secret check (temporary for backfill)
+    if (req.query.secret !== 'BACKFILL2025') {
+      return res.status(403).json({ success: false, error: 'Invalid secret' });
+    }
+
+    console.log('[Admin] Starting enrollment stats backfill...');
+
+    const enrollments = await ClassEnrollment.find({ status: 'enrolled' });
+    console.log(`[Admin] Found ${enrollments.length} enrollments to process`);
+
+    const results = {
+      total: enrollments.length,
+      updated: 0,
+      skipped: 0,
+      details: []
+    };
+
+    for (const enrollment of enrollments) {
+      const { studentId, classId } = enrollment;
+
+      console.log(`[Admin] Processing: Student ${studentId}, Class ${classId}`);
+
+      const sessions = await Session.find({ classId });
+      console.log(`[Admin]   Found ${sessions.length} sessions for this class`);
+
+      if (sessions.length === 0) {
+        console.log(`[Admin]   Skipping - no sessions found`);
+        results.skipped++;
+        continue;
+      }
+
+      let totalQuestionsAnswered = 0;
+      let totalCorrectAnswers = 0;
+      let sessionsAttendedSet = new Set();
+      let lastAttendanceDate = null;
+
+      for (const session of sessions) {
+        const participated = session.participants.some(p =>
+          p.userId && p.userId.toString() === studentId.toString()
+        );
+
+        if (participated) {
+          sessionsAttendedSet.add(session._id.toString());
+
+          const participant = session.participants.find(p =>
+            p.userId && p.userId.toString() === studentId.toString()
+          );
+          if (participant && participant.joinedAt) {
+            if (!lastAttendanceDate || participant.joinedAt > lastAttendanceDate) {
+              lastAttendanceDate = participant.joinedAt;
+            }
+          }
+        }
+
+        const studentResponses = session.responses.filter(r =>
+          r.userId && r.userId.toString() === studentId.toString()
+        );
+
+        totalQuestionsAnswered += studentResponses.length;
+
+        for (const response of studentResponses) {
+          if (response.correctAnswer !== undefined && response.answer !== null) {
+            const isCorrect = String(response.answer).toLowerCase().trim() ===
+                            String(response.correctAnswer).toLowerCase().trim();
+            if (isCorrect) {
+              totalCorrectAnswers++;
+            }
+          }
+        }
+      }
+
+      const sessionsAttended = sessionsAttendedSet.size;
+
+      enrollment.stats.questionsAnswered = totalQuestionsAnswered;
+      enrollment.stats.correctAnswers = totalCorrectAnswers;
+      enrollment.stats.sessionsAttended = sessionsAttended;
+      enrollment.stats.totalSessions = sessions.length;
+      if (lastAttendanceDate) {
+        enrollment.stats.lastAttendanceDate = lastAttendanceDate;
+      }
+
+      await enrollment.save();
+
+      const detail = {
+        studentId: studentId.toString(),
+        classId: classId.toString(),
+        sessionsAttended,
+        totalSessions: sessions.length,
+        questionsAnswered: totalQuestionsAnswered,
+        correctAnswers: totalCorrectAnswers,
+        lastAttendanceDate: lastAttendanceDate ? lastAttendanceDate.toISOString() : null
+      };
+
+      console.log(`[Admin]   ✅ Updated stats:`, detail);
+      results.details.push(detail);
+      results.updated++;
+    }
+
+    console.log(`[Admin] Backfill complete! Updated: ${results.updated}, Skipped: ${results.skipped}`);
+
+    res.json({
+      success: true,
+      message: 'Enrollment stats backfill completed',
+      results
+    });
+
+  } catch (error) {
+    console.error('[Admin] Error during backfill:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Backfill enrollment stats from existing session data
  * GET /api/admin/backfill-enrollment-stats
  */
