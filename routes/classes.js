@@ -10,6 +10,7 @@ const ClassEnrollment = require('../models/ClassEnrollment');
 const ClassInvitation = require('../models/ClassInvitation');
 const Student = require('../models/Student');
 const User = require('../models/User');
+const Session = require('../models/Session');
 
 // Validation middleware
 const classValidation = [
@@ -73,21 +74,29 @@ router.get('/', auth, instructorAuth, async (req, res) => {
     
     console.log('Found classes:', classes.length);
     
-    // Add enrollment counts
+    // Add enrollment counts and session counts
     const classesWithStats = await Promise.all(
       classes.map(async (classDoc) => {
         try {
           const enrollmentSummary = await ClassEnrollment.getClassSummary(classDoc._id);
+          const sessionCount = await Session.countDocuments({ classId: classDoc._id });
+
           return {
             ...classDoc.toObject(),
-            enrollmentSummary
+            enrollmentSummary,
+            stats: {
+              sessionCount
+            }
           };
         } catch (summaryError) {
           console.error('Error getting enrollment summary for class:', classDoc._id, summaryError);
           // Return class without summary if it fails
           return {
             ...classDoc.toObject(),
-            enrollmentSummary: { totalEnrolled: 0, activeStudents: 0 }
+            enrollmentSummary: { totalEnrolled: 0, activeStudents: 0 },
+            stats: {
+              sessionCount: 0
+            }
           };
         }
       })
@@ -128,13 +137,14 @@ router.get('/stats', auth, instructorAuth, async (req, res) => {
       .map(c => c.term)
       .sort()
       .pop();
-    
+
     const currentTermClasses = classes.filter(c => c.term === currentTerm);
     const currentTermClassIds = currentTermClasses.map(c => c._id);
-    
-    // Count sessions (would need Session model)
-    // For now, returning placeholder
-    const sessionCount = 0;
+
+    // Count sessions for current term classes
+    const sessionCount = await Session.countDocuments({
+      classId: { $in: currentTermClassIds }
+    });
     
     // Calculate average engagement
     const engagementStats = await ClassEnrollment.aggregate([
