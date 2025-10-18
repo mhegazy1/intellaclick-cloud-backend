@@ -386,16 +386,68 @@ router.get('/:id/sessions', auth, param('id').isMongoId(), async (req, res) => {
       studentId: (req.user._id || req.user.id || req.user.userId),
       status: { $in: ['enrolled', 'pending'] }
     });
-    
+
     if (!enrollment) {
       return res.status(403).json({ error: 'Not enrolled in this class' });
     }
-    
-    // TODO: Implement when Session model is created
-    // For now, return empty array
-    const sessions = [];
-    
-    res.json({ sessions });
+
+    const Session = require('../models/Session');
+    const studentId = req.user._id || req.user.id || req.user.userId;
+
+    // Get all sessions for this class
+    const sessions = await Session.find({ classId: req.params.id })
+      .sort({ createdAt: -1 });
+
+    // Map sessions with student participation info
+    const sessionsWithParticipation = sessions.map(session => {
+      // Find student's participant record
+      const participant = session.participants.find(p =>
+        p.userId && p.userId.toString() === studentId.toString()
+      );
+
+      let myParticipation = null;
+
+      if (participant) {
+        // Get student's responses
+        const myResponses = session.responses.filter(r =>
+          r.participantId === participant.participantId
+        );
+
+        const questionsAnswered = myResponses.length;
+        const correctAnswers = myResponses.filter(r =>
+          r.correctAnswer !== undefined &&
+          r.answer !== null &&
+          String(r.answer).toLowerCase().trim() === String(r.correctAnswer).toLowerCase().trim()
+        ).length;
+
+        const score = questionsAnswered > 0
+          ? Math.round((correctAnswers / questionsAnswered) * 100)
+          : 0;
+
+        myParticipation = {
+          attended: true,
+          questionsAnswered,
+          correctAnswers,
+          score
+        };
+      }
+
+      return {
+        _id: session._id,
+        code: session.sessionCode,
+        status: session.status === 'ended' ? 'completed' : session.status,
+        startTime: session.startedAt || session.createdAt,
+        endTime: session.endedAt,
+        stats: {
+          totalQuestions: session.totalQuestions || session.questions.length,
+          averageScore: session.averageScore || 0,
+          participationRate: session.completionRate || 0
+        },
+        myParticipation
+      };
+    });
+
+    res.json({ sessions: sessionsWithParticipation });
   } catch (error) {
     console.error('Error fetching sessions:', error);
     res.status(500).json({ error: 'Failed to fetch sessions' });
