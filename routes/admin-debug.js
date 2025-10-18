@@ -73,4 +73,44 @@ router.get('/check-responses', async (req, res) => {
   }
 });
 
+/**
+ * Test sessions endpoint
+ * GET /api/admin-debug/test-sessions/:classId?secret=BACKFILL2025
+ */
+router.get('/test-sessions/:classId', async (req, res) => {
+  try {
+    if (req.query.secret !== 'BACKFILL2025') {
+      return res.status(403).json({ success: false, error: 'Invalid secret' });
+    }
+
+    const Session = require('../models/Session');
+    const { classId } = req.params;
+
+    const sessions = await Session.find({ classId })
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      classId,
+      totalSessions: sessions.length,
+      sessions: sessions.map(s => ({
+        _id: s._id,
+        code: s.sessionCode,
+        title: s.title,
+        status: s.status,
+        participants: s.participants.length,
+        responses: s.responses.length,
+        createdAt: s.createdAt
+      }))
+    });
+
+  } catch (error) {
+    console.error('[Debug] Error testing sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
