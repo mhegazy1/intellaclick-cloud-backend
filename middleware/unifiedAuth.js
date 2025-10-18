@@ -23,7 +23,15 @@ module.exports = async function(req, res, next) {
   try {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-    
+
+    console.log('[unifiedAuth] Token decoded:', {
+      type: decoded.type,
+      userId: decoded.userId,
+      hasType: !!decoded.type,
+      typeValue: decoded.type,
+      isStudent: decoded.type === 'student'
+    });
+
     // Check if it's a student token
     if (decoded.type === 'student' && decoded.userId) {
       try {
