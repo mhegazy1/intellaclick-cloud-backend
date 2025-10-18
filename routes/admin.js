@@ -416,20 +416,24 @@ router.get('/backfill-enrollment-stats-simple', async (req, res) => {
               lastAttendanceDate = participant.joinedAt;
             }
           }
-        }
 
-        const studentResponses = session.responses.filter(r =>
-          r.userId && r.userId.toString() === studentId.toString()
-        );
+          // CRITICAL FIX: Match responses by participantId, not userId
+          // Responses only store participantId, not userId
+          if (participant && participant.participantId) {
+            const studentResponses = session.responses.filter(r =>
+              r.participantId === participant.participantId
+            );
 
-        totalQuestionsAnswered += studentResponses.length;
+            totalQuestionsAnswered += studentResponses.length;
 
-        for (const response of studentResponses) {
-          if (response.correctAnswer !== undefined && response.answer !== null) {
-            const isCorrect = String(response.answer).toLowerCase().trim() ===
-                            String(response.correctAnswer).toLowerCase().trim();
-            if (isCorrect) {
-              totalCorrectAnswers++;
+            for (const response of studentResponses) {
+              if (response.correctAnswer !== undefined && response.answer !== null) {
+                const isCorrect = String(response.answer).toLowerCase().trim() ===
+                                String(response.correctAnswer).toLowerCase().trim();
+                if (isCorrect) {
+                  totalCorrectAnswers++;
+                }
+              }
             }
           }
         }
@@ -533,20 +537,24 @@ router.get('/backfill-enrollment-stats', auth, async (req, res) => {
               lastAttendanceDate = participant.joinedAt;
             }
           }
-        }
 
-        const studentResponses = session.responses.filter(r =>
-          r.userId && r.userId.toString() === studentId.toString()
-        );
+          // CRITICAL FIX: Match responses by participantId, not userId
+          // Responses only store participantId, not userId
+          if (participant && participant.participantId) {
+            const studentResponses = session.responses.filter(r =>
+              r.participantId === participant.participantId
+            );
 
-        totalQuestionsAnswered += studentResponses.length;
+            totalQuestionsAnswered += studentResponses.length;
 
-        for (const response of studentResponses) {
-          if (response.correctAnswer !== undefined && response.answer !== null) {
-            const isCorrect = String(response.answer).toLowerCase().trim() ===
-                            String(response.correctAnswer).toLowerCase().trim();
-            if (isCorrect) {
-              totalCorrectAnswers++;
+            for (const response of studentResponses) {
+              if (response.correctAnswer !== undefined && response.answer !== null) {
+                const isCorrect = String(response.answer).toLowerCase().trim() ===
+                                String(response.correctAnswer).toLowerCase().trim();
+                if (isCorrect) {
+                  totalCorrectAnswers++;
+                }
+              }
             }
           }
         }
