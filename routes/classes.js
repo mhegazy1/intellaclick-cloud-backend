@@ -378,12 +378,24 @@ router.get('/:id/details', auth, param('id').isMongoId(), async (req, res) => {
 });
 
 // GET /api/classes/:id/sessions - Get class sessions with student participation
-router.get('/:id/sessions', auth, param('id').isMongoId(), async (req, res) => {
+router.get('/:id/sessions', unifiedAuth, param('id').isMongoId(), async (req, res) => {
   try {
+    // Get user ID (works for both student and instructor tokens)
+    const userId = req.user._id || req.user.id || req.user.userId;
+    let studentId = userId;
+
+    // If it's an instructor, find their linked student account
+    if (!req.user.isStudent) {
+      const linkedStudent = await Student.findOne({ email: req.user.email });
+      if (linkedStudent) {
+        studentId = linkedStudent._id;
+      }
+    }
+
     // Check enrollment
     const enrollment = await ClassEnrollment.findOne({
       classId: req.params.id,
-      studentId: (req.user._id || req.user.id || req.user.userId),
+      studentId: studentId,
       status: { $in: ['enrolled', 'pending'] }
     });
 
@@ -392,7 +404,6 @@ router.get('/:id/sessions', auth, param('id').isMongoId(), async (req, res) => {
     }
 
     const Session = require('../models/Session');
-    const studentId = req.user._id || req.user.id || req.user.userId;
 
     // Get all sessions for this class
     const sessions = await Session.find({ classId: req.params.id })
