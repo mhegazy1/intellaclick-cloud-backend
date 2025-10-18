@@ -440,11 +440,15 @@ router.get('/backfill-enrollment-stats-simple', async (req, res) => {
       }
 
       const sessionsAttended = sessionsAttendedSet.size;
+      const attendanceRate = sessions.length > 0
+        ? Math.round((sessionsAttended / sessions.length) * 100)
+        : 0;
 
       enrollment.stats.questionsAnswered = totalQuestionsAnswered;
       enrollment.stats.correctAnswers = totalCorrectAnswers;
       enrollment.stats.sessionsAttended = sessionsAttended;
       enrollment.stats.totalSessions = sessions.length;
+      enrollment.stats.attendanceRate = attendanceRate;
       if (lastAttendanceDate) {
         enrollment.stats.lastAttendanceDate = lastAttendanceDate;
       }
@@ -561,11 +565,15 @@ router.get('/backfill-enrollment-stats', auth, async (req, res) => {
       }
 
       const sessionsAttended = sessionsAttendedSet.size;
+      const attendanceRate = sessions.length > 0
+        ? Math.round((sessionsAttended / sessions.length) * 100)
+        : 0;
 
       enrollment.stats.questionsAnswered = totalQuestionsAnswered;
       enrollment.stats.correctAnswers = totalCorrectAnswers;
       enrollment.stats.sessionsAttended = sessionsAttended;
       enrollment.stats.totalSessions = sessions.length;
+      enrollment.stats.attendanceRate = attendanceRate;
       if (lastAttendanceDate) {
         enrollment.stats.lastAttendanceDate = lastAttendanceDate;
       }

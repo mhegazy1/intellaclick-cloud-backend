@@ -153,6 +153,11 @@ const classEnrollmentSchema = new mongoose.Schema({
       type: Number,
       default: 0
     },
+    attendanceRate: {
+      type: Number,
+      default: 0,
+      description: 'Percentage of sessions attended'
+    },
     questionsAnswered: {
       type: Number,
       default: 0
