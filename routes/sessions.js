@@ -231,7 +231,7 @@ router.post('/test', async (req, res) => {
 // Create a real session (requires authentication)
 router.post('/', auth, async (req, res) => {
   try {
-    const { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange, showCorrectAnswer, gamification } = req.body;
+    let { sessionCode, title, description, requireLogin, classId, rosterId, restrictToEnrolled, allowAnswerChange, showCorrectAnswer, gamification } = req.body;
 
     console.log('[Sessions] Create session request:');
     console.log('[Sessions] - sessionCode:', sessionCode);
@@ -242,22 +242,36 @@ router.post('/', auth, async (req, res) => {
     console.log('[Sessions] - allowAnswerChange:', allowAnswerChange);
     console.log('[Sessions] - showCorrectAnswer:', showCorrectAnswer);
     console.log('[Sessions] - User:', req.user);
-    
-    // Check if session code already exists
-    const existingSession = await Session.findOne({ sessionCode });
-    if (existingSession) {
-      // If session is old (more than 12 hours) and not active, delete it
-      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-      if (existingSession.createdAt < twelveHoursAgo && existingSession.status !== 'active') {
-        console.log(`[Sessions] Deleting old session with code ${sessionCode}`);
-        await Session.deleteOne({ _id: existingSession._id });
-      } else {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Session code already exists' 
+
+    // If no session code provided, generate a random one
+    if (!sessionCode || sessionCode.trim() === '') {
+      sessionCode = generateSessionCode();
+      console.log('[Sessions] Generated random session code:', sessionCode);
+    } else {
+      // Custom code provided - validate format
+      sessionCode = sessionCode.toUpperCase().trim();
+      if (!/^[A-Z0-9]{4,20}$/.test(sessionCode)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Session code must be 4-20 characters (letters and numbers only)'
         });
       }
     }
+
+    // Check if session code is already in use for an ACTIVE or WAITING session
+    const activeSession = await Session.findOne({
+      sessionCode,
+      status: { $in: ['waiting', 'active'] }
+    });
+
+    if (activeSession) {
+      return res.status(400).json({
+        success: false,
+        error: 'This session code is currently in use. Please end the existing session or choose a different code.'
+      });
+    }
+
+    console.log('[Sessions] Session code available:', sessionCode);
     
     // Create new session
     const sessionData = {
@@ -933,14 +947,40 @@ router.get('/active', auth, async (req, res) => {
       'participants.userId': req.user.userId,
       status: { $in: ['waiting', 'active'] }
     });
-    
+
     if (!session) {
       return res.json({ session: null });
     }
-    
+
     res.json({ session });
   } catch (error) {
     console.error('Error getting active session:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all active sessions created by instructor
+router.get('/instructor/active', auth, async (req, res) => {
+  try {
+    const sessions = await Session.find({
+      instructorId: req.user.userId || req.user.id,
+      status: { $in: ['waiting', 'active'] }
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      sessions: sessions.map(s => ({
+        _id: s._id,
+        sessionCode: s.sessionCode,
+        title: s.title,
+        status: s.status,
+        participants: s.participants.length,
+        createdAt: s.createdAt,
+        currentQuestion: s.currentQuestion
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting instructor active sessions:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

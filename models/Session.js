@@ -5,9 +5,9 @@ const sessionSchema = new mongoose.Schema({
   sessionCode: {
     type: String,
     required: true,
-    unique: true,
     uppercase: true,
-    trim: true
+    trim: true,
+    description: 'Reusable session code (e.g., BIO3002025). Same code can be used for multiple sessions.'
   },
   title: {
     type: String,
@@ -243,7 +243,16 @@ sessionSchema.post('save', async function(doc) {
 sessionSchema.plugin(ensureRequireLoginPlugin);
 
 // Indexes for performance and uniqueness
-sessionSchema.index({ sessionCode: 1 }, { unique: true });
+// Allow reusing session codes, but prevent duplicate ACTIVE codes
+sessionSchema.index(
+  { sessionCode: 1, status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ['waiting', 'active'] } },
+    name: 'unique_active_session_code'
+  }
+);
+sessionSchema.index({ sessionCode: 1 }); // Non-unique index for lookups
 sessionSchema.index({ instructorId: 1 });
 sessionSchema.index({ status: 1 });
 
