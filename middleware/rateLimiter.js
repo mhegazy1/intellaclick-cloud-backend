@@ -39,7 +39,7 @@ const limiters = {
   // Strict limiter for authentication endpoints
   auth: createRateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5,
+    max: 50,
     message: 'Too many authentication attempts, please try again later.',
     skipSuccessfulRequests: true // Don't count successful requests
   }),

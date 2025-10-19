@@ -10,10 +10,12 @@ const rateLimiter = require('../middleware/rateLimiter');
 const emailService = require('../services/emailService');
 
 // Rate limiting for auth endpoints
+// Generous limits that allow normal use while preventing abuse
 const authLimiter = rateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs
-  message: 'Too many authentication attempts, please try again later'
+  max: 100, // 100 attempts per 15 min - blocks brute force, allows normal use
+  message: 'Too many authentication attempts, please try again later',
+  skipSuccessfulRequests: true // Don't count successful requests
 });
 
 // Generate JWT token

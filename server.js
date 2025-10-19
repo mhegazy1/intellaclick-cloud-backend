@@ -87,15 +87,17 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Rate limiting - Different limits for different endpoints
+// Settings are generous for normal use but still block actual attacks
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 auth requests per windowMs
-  message: 'Too many authentication attempts, please try again later.'
+  max: 100, // Allow 100 login attempts per 15 min (blocks brute force, allows normal use)
+  message: 'Too many authentication attempts, please try again later.',
+  skipSuccessfulRequests: true // Don't count successful logins
 });
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5000 // Increased from 1000 to support multiple back-to-back sessions
+  max: 10000 // Very high limit - allows normal usage while preventing abuse
 });
 
 // Student polling needs much higher limits
