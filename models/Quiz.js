@@ -82,9 +82,14 @@ const quizSchema = new mongoose.Schema({
     questionSnapshot: {
       questionText: { type: String, required: false },
       questionType: { type: String, required: false },  // Renamed from 'type' to avoid Mongoose conflict
+      type: { type: String, required: false },  // Keep for backwards compatibility
       options: { type: [String], required: false },
       correctAnswer: { type: mongoose.Schema.Types.Mixed, required: false },
-      explanation: { type: String, required: false }
+      explanation: { type: String, required: false },
+      // Matching question data
+      pairs: { type: [{ left: String, right: String }], required: false },
+      // Ordering question data
+      correctOrder: { type: [String], required: false }
     }
   }],
   
