@@ -327,11 +327,31 @@ classEnrollmentSchema.statics.getClassSummary = async function(classId) {
   });
   
   console.log('Enrollment summary:', result);
-  
+
+  // Calculate average attendance rate from enrolled students
+  const attendanceStats = await this.aggregate([
+    { $match: {
+        classId: new mongoose.Types.ObjectId(classId),
+        status: 'enrolled'
+      }
+    },
+    { $group: {
+        _id: null,
+        avgAttendance: { $avg: '$stats.attendanceRate' },
+        avgParticipation: { $avg: '$stats.participationRate' }
+      }
+    }
+  ]);
+
+  const avgAttendance = attendanceStats[0]?.avgAttendance || 0;
+  const avgParticipation = attendanceStats[0]?.avgParticipation || 0;
+
   // Return in the format expected by the route
   return {
     totalEnrolled: result.enrolled,
     activeStudents: result.enrolled,
+    avgAttendance: Math.round(avgAttendance),
+    avgParticipation: Math.round(avgParticipation),
     ...result
   };
   } catch (error) {
@@ -340,6 +360,8 @@ classEnrollmentSchema.statics.getClassSummary = async function(classId) {
     return {
       totalEnrolled: 0,
       activeStudents: 0,
+      avgAttendance: 0,
+      avgParticipation: 0,
       enrolled: 0,
       dropped: 0,
       withdrawn: 0,
