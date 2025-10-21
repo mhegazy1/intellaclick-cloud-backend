@@ -8,6 +8,7 @@ const unifiedAuth = require('../middleware/unifiedAuth');
 const Class = require('../models/Class');
 const ClassEnrollment = require('../models/ClassEnrollment');
 const ClassInvitation = require('../models/ClassInvitation');
+const { compareAnswers } = require('../utils/answerComparison');
 const Student = require('../models/Student');
 const User = require('../models/User');
 const Session = require('../models/Session');
@@ -438,7 +439,7 @@ router.get('/:id/sessions', unifiedAuth, param('id').isMongoId(), async (req, re
         const correctAnswers = myResponses.filter(r =>
           r.correctAnswer !== undefined &&
           r.answer !== null &&
-          String(r.answer).toLowerCase().trim() === String(r.correctAnswer).toLowerCase().trim()
+          compareAnswers(r.answer, r.correctAnswer, r.questionType)
         ).length;
 
         const score = questionsAnswered > 0

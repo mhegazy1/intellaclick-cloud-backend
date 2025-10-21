@@ -3,6 +3,7 @@ const router = express.Router();
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
 const { normalizeCorrectAnswer } = require('../fix-answer-format');
+const { compareAnswers } = require('../utils/answerComparison');
 
 // Debug middleware to log all requests to this router
 router.use((req, res, next) => {
@@ -1787,7 +1788,7 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
 
           // Check if answer is correct
           const isCorrect = response.correctAnswer !== undefined &&
-                           String(answer).toLowerCase().trim() === String(response.correctAnswer).toLowerCase().trim();
+                           compareAnswers(answer, response.correctAnswer, response.questionType);
           if (isCorrect) {
             enrollment.stats.correctAnswers += 1;
           }

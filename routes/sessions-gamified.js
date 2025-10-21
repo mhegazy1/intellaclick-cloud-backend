@@ -3,6 +3,7 @@ const router = express.Router();
 const Session = require('../models/Session');
 const GamificationService = require('../services/gamificationService');
 const auth = require('../middleware/auth');
+const { compareAnswers } = require('../utils/answerComparison');
 
 /**
  * Enhanced session end endpoint that processes gamification
@@ -85,7 +86,7 @@ router.post('/:sessionId/end-with-gamification', auth, async (req, res) => {
       for (const response of participantData.responses) {
         const question = session.questionsSent.find(q => q.questionId === response.questionId);
         if (question) {
-          const isCorrect = response.answer === question.correctAnswer;
+          const isCorrect = compareAnswers(response.answer, question.correctAnswer, question.questionType);
           if (isCorrect) correctAnswers++;
           
           const responseTime = response.submittedAt - question.sentAt;
@@ -185,9 +186,9 @@ router.get('/:sessionId/results-preview', auth, async (req, res) => {
       
       const participantResult = results.get(key);
       const question = session.questionsSent.find(q => q.questionId === response.questionId);
-      
+
       if (question) {
-        const isCorrect = response.answer === question.correctAnswer;
+        const isCorrect = compareAnswers(response.answer, question.correctAnswer, question.questionType);
         if (isCorrect) {
           participantResult.correctAnswers++;
           participantResult.potentialPoints += 5; // 5 points per correct answer
@@ -294,8 +295,8 @@ router.post('/code/:sessionCode/respond-enhanced', async (req, res) => {
     };
     
     // Check if correct
-    const isCorrect = answer === currentQuestion.correctAnswer;
-    
+    const isCorrect = compareAnswers(answer, currentQuestion.correctAnswer, currentQuestion.questionType);
+
     // Calculate potential points
     let points = 0;
     if (session.classId && userId) {
