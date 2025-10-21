@@ -30,6 +30,12 @@ const sessionEnhancedSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  // Class association
+  classId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+    index: true
+  },
   // Authentication configuration
   authMode: {
     type: String,
