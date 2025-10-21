@@ -902,6 +902,7 @@ router.get('/', auth, async (req, res) => {
         sessionCode: s.sessionCode,
         title: s.title,
         status: s.status,
+        classId: s.classId, // Include classId for filtering
         participantCount: s.participants ? s.participants.length : 0,
         responseCount: s.responses ? s.responses.length : 0,
         totalQuestions: s.totalQuestions || s.questions?.length || 0,
