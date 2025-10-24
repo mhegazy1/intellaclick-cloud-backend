@@ -172,8 +172,11 @@ router.get('/leaderboard/:rosterId', async (req, res) => {
 
     console.log(`[Gamification] Fetching leaderboard for roster: ${rosterId}`);
 
+    // Convert query type to service format (allTime -> all-time)
+    const serviceType = type === 'allTime' ? 'all-time' : type;
+
     // Use GamificationService to get leaderboard from StudentProgress collection
-    const leaderboard = await GamificationService.getLeaderboard(rosterId, type, limit);
+    const leaderboard = await GamificationService.getClassLeaderboard(rosterId, serviceType, limit);
 
     res.json({
       success: true,
