@@ -23,7 +23,7 @@ const generateToken = (studentId) => {
   return jwt.sign(
     { userId: studentId, type: 'student' },
     process.env.JWT_SECRET || 'dev-secret',
-    { expiresIn: '7d' }
+    { expiresIn: '30d' }
   );
 };
 
