@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const GamificationPlayer = require('../models/GamificationPlayer');
 const GamificationSettings = require('../models/GamificationSettings');
+const GamificationService = require('../services/gamificationService');
 
 // Debug middleware
 router.use((req, res, next) => {
@@ -166,29 +167,18 @@ router.post('/players/sync', async (req, res) => {
 router.get('/leaderboard/:rosterId', async (req, res) => {
   try {
     const { rosterId } = req.params;
-    const limit = parseInt(req.query.limit) || 10;
-    const sortBy = req.query.sortBy || 'totalPoints';
+    const limit = parseInt(req.query.limit) || 100;
+    const type = req.query.type || 'allTime'; // allTime, weekly, monthly
 
     console.log(`[Gamification] Fetching leaderboard for roster: ${rosterId}`);
 
-    // Handle "unassigned" as special case for players without a rosterId
-    const query = rosterId === 'unassigned'
-      ? { $or: [{ rosterId: null }, { rosterId: { $exists: false } }] }
-      : { rosterId };
-
-    const sortField = {};
-    sortField[sortBy] = -1;
-
-    const players = await GamificationPlayer
-      .find(query)
-      .sort(sortField)
-      .limit(limit)
-      .select('playerId name avatar level totalPoints stats.accuracy stats.bestStreak');
+    // Use GamificationService to get leaderboard from StudentProgress collection
+    const leaderboard = await GamificationService.getLeaderboard(rosterId, type, limit);
 
     res.json({
       success: true,
-      leaderboard: players,
-      count: players.length
+      leaderboard,
+      count: leaderboard.length
     });
 
   } catch (error) {
