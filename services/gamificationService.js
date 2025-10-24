@@ -329,9 +329,11 @@ class GamificationService {
    */
   static async getClassLeaderboard(classId, type = 'all-time', limit = 10) {
     try {
+      console.log('[GamificationService] getClassLeaderboard called with:', { classId, type, limit });
+
       let sortField = 'totalPoints';
       let additionalFilter = {};
-      
+
       switch (type) {
         case 'weekly':
           sortField = 'weeklyStats.points';
@@ -343,12 +345,22 @@ class GamificationService {
           sortField = 'level';
           break;
       }
-      
+
+      // First check if any records exist for this class
+      const totalRecords = await StudentProgress.countDocuments({ classId });
+      console.log('[GamificationService] Total StudentProgress records for classId:', totalRecords);
+
+      // Also check all records to see what classIds exist
+      const allRecords = await StudentProgress.find({}).select('classId studentId totalPoints').limit(10);
+      console.log('[GamificationService] Sample StudentProgress records:', JSON.stringify(allRecords, null, 2));
+
       const leaderboard = await StudentProgress.find({ classId, ...additionalFilter })
         .sort({ [sortField]: -1 })
         .limit(limit)
         .populate('studentId', 'firstName lastName email')
         .select('studentId totalPoints level weeklyStats monthlyStats classRank currentStreak');
+
+      console.log('[GamificationService] Leaderboard query returned:', leaderboard.length, 'records');
       
       return leaderboard.map((entry, index) => ({
         rank: index + 1,
