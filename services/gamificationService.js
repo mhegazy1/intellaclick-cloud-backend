@@ -13,29 +13,56 @@ class GamificationService {
    */
   static async awardPoints(studentId, classId, points, reason = 'activity') {
     try {
+      const mongoose = require('mongoose');
+
+      // Convert IDs to ObjectId if they're strings
+      const studentObjectId = typeof studentId === 'string' ? new mongoose.Types.ObjectId(studentId) : studentId;
+      const classObjectId = typeof classId === 'string' ? new mongoose.Types.ObjectId(classId) : classId;
+
+      console.log('[GamificationService] awardPoints called with:', {
+        studentId,
+        classId,
+        studentObjectId: studentObjectId.toString(),
+        classObjectId: classObjectId.toString(),
+        points,
+        reason
+      });
+
       // Find or create student progress
-      let progress = await StudentProgress.findOne({ studentId, classId });
-      
+      let progress = await StudentProgress.findOne({
+        studentId: studentObjectId,
+        classId: classObjectId
+      });
+
       if (!progress) {
-        progress = new StudentProgress({ studentId, classId });
+        console.log('[GamificationService] Creating new StudentProgress record');
+        progress = new StudentProgress({
+          studentId: studentObjectId,
+          classId: classObjectId
+        });
+      } else {
+        console.log('[GamificationService] Found existing StudentProgress:', {
+          currentPoints: progress.totalPoints
+        });
       }
-      
+
       // Award points
       progress.totalPoints += points;
       progress.currentPoints += points;
-      
+
       // Add experience (XP is same as points for simplicity)
       const levelUpInfo = progress.addExperience(points);
-      
+
       // Update weekly and monthly stats
       progress.weeklyStats.points += points;
       progress.monthlyStats.points += points;
-      
+
       await progress.save();
-      
+      console.log('[GamificationService] Points saved. New total:', progress.totalPoints);
+
       // Check for point-based achievements
-      await this.checkPointAchievements(studentId, classId, progress);
-      
+      await this.checkPointAchievements(studentObjectId, classObjectId, progress);
+
       return {
         success: true,
         points: progress.totalPoints,
@@ -329,7 +356,17 @@ class GamificationService {
    */
   static async getClassLeaderboard(classId, type = 'all-time', limit = 10) {
     try {
-      console.log('[GamificationService] getClassLeaderboard called with:', { classId, type, limit });
+      const mongoose = require('mongoose');
+
+      // Convert classId to ObjectId if it's a string
+      const classObjectId = typeof classId === 'string' ? new mongoose.Types.ObjectId(classId) : classId;
+
+      console.log('[GamificationService] getClassLeaderboard called with:', {
+        classId,
+        classObjectId: classObjectId.toString(),
+        type,
+        limit
+      });
 
       let sortField = 'totalPoints';
       let additionalFilter = {};
@@ -347,14 +384,14 @@ class GamificationService {
       }
 
       // First check if any records exist for this class
-      const totalRecords = await StudentProgress.countDocuments({ classId });
+      const totalRecords = await StudentProgress.countDocuments({ classId: classObjectId });
       console.log('[GamificationService] Total StudentProgress records for classId:', totalRecords);
 
       // Also check all records to see what classIds exist
       const allRecords = await StudentProgress.find({}).select('classId studentId totalPoints').limit(10);
       console.log('[GamificationService] Sample StudentProgress records:', JSON.stringify(allRecords, null, 2));
 
-      const leaderboard = await StudentProgress.find({ classId, ...additionalFilter })
+      const leaderboard = await StudentProgress.find({ classId: classObjectId, ...additionalFilter })
         .sort({ [sortField]: -1 })
         .limit(limit)
         .populate('studentId', 'firstName lastName email')
