@@ -394,7 +394,7 @@ class GamificationService {
       const leaderboard = await StudentProgress.find({ classId: classObjectId, ...additionalFilter })
         .sort({ [sortField]: -1 })
         .limit(limit)
-        .populate('studentId', 'firstName lastName email')
+        .populate('studentId', 'profile.firstName profile.lastName email')
         .select('studentId totalPoints level weeklyStats monthlyStats classRank currentStreak');
 
       console.log('[GamificationService] Leaderboard query returned:', leaderboard.length, 'records');
@@ -411,7 +411,7 @@ class GamificationService {
         .map((entry, index) => ({
           rank: index + 1,
           studentId: entry.studentId._id,
-          studentName: `${entry.studentId.firstName} ${entry.studentId.lastName}`,
+          studentName: `${entry.studentId.profile.firstName} ${entry.studentId.profile.lastName}`,
           studentEmail: entry.studentId.email,
           points: type === 'weekly' ? entry.weeklyStats.points :
                   type === 'monthly' ? entry.monthlyStats.points :

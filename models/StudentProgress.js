@@ -4,7 +4,7 @@ const studentProgressSchema = new mongoose.Schema({
   // Core Relationships
   studentId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Student',  // Changed from 'User' to 'Student'
     required: true,
     index: true
   },
