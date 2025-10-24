@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
+const optionalAuth = require('../middleware/optionalAuth');
 const { normalizeCorrectAnswer } = require('../fix-answer-format');
 const { compareAnswers } = require('../utils/answerComparison');
 
@@ -1626,7 +1627,7 @@ router.get('/code/:sessionCode/responses', async (req, res) => {
 });
 
 // Submit response by session code (for students)
-router.post('/code/:sessionCode/respond', async (req, res) => {
+router.post('/code/:sessionCode/respond', optionalAuth, async (req, res) => {
   try {
     const { questionId, answer, timeSpent, participantId } = req.body;
     const sessionCode = req.params.sessionCode.toUpperCase();
@@ -1641,6 +1642,8 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
       answerIsUndefined: answer === undefined,
       answerValue: JSON.stringify(answer),
       participantId,
+      hasUser: !!req.user,
+      userId: req.user?.userId || req.user?._id || null,
       fullBody: JSON.stringify(req.body)
     });
 
@@ -1806,6 +1809,46 @@ router.post('/code/:sessionCode/respond', async (req, res) => {
       } catch (statError) {
         console.error('[Sessions] Error updating enrollment stats:', statError);
         // Don't fail the response if stats update fails
+      }
+    }
+
+    // GAMIFICATION: Award points if gamification is enabled
+    if (session.gamification && session.gamification.enabled && req.user && req.user.userId && session.classId) {
+      try {
+        const GamificationService = require('../services/gamificationService');
+
+        // Check if answer is correct
+        const isCorrect = response.correctAnswer !== undefined &&
+                         compareAnswers(answer, response.correctAnswer, response.questionType);
+
+        if (isCorrect) {
+          const questionPoints = session.currentQuestion?.points || 1;
+          const timeBonus = timeSpent < 10 ? Math.floor(questionPoints * 0.5) : 0; // 50% bonus for fast answers
+          const totalPoints = questionPoints + timeBonus;
+
+          console.log('[Sessions] Awarding gamification points:', {
+            studentId: req.user.userId,
+            classId: session.classId,
+            basePoints: questionPoints,
+            timeBonus,
+            totalPoints,
+            isCorrect
+          });
+
+          const result = await GamificationService.awardPoints(
+            req.user.userId,
+            session.classId,
+            totalPoints,
+            'correct_answer'
+          );
+
+          console.log('[Sessions] Gamification points awarded:', result);
+        } else {
+          console.log('[Sessions] No points awarded - answer incorrect');
+        }
+      } catch (gamError) {
+        console.error('[Sessions] Error awarding gamification points:', gamError);
+        // Don't fail the response if gamification fails
       }
     }
 
