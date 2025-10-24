@@ -398,19 +398,28 @@ class GamificationService {
         .select('studentId totalPoints level weeklyStats monthlyStats classRank currentStreak');
 
       console.log('[GamificationService] Leaderboard query returned:', leaderboard.length, 'records');
-      
-      return leaderboard.map((entry, index) => ({
-        rank: index + 1,
-        studentId: entry.studentId._id,
-        studentName: `${entry.studentId.firstName} ${entry.studentId.lastName}`,
-        studentEmail: entry.studentId.email,
-        points: type === 'weekly' ? entry.weeklyStats.points : 
-                type === 'monthly' ? entry.monthlyStats.points : 
-                entry.totalPoints,
-        level: entry.level,
-        streak: entry.currentStreak,
-        previousRank: entry.previousClassRank
-      }));
+
+      // Filter out entries where student user doesn't exist and map to response format
+      return leaderboard
+        .filter(entry => {
+          if (!entry.studentId) {
+            console.warn('[GamificationService] Skipping entry - student user deleted:', entry._id);
+            return false;
+          }
+          return true;
+        })
+        .map((entry, index) => ({
+          rank: index + 1,
+          studentId: entry.studentId._id,
+          studentName: `${entry.studentId.firstName} ${entry.studentId.lastName}`,
+          studentEmail: entry.studentId.email,
+          points: type === 'weekly' ? entry.weeklyStats.points :
+                  type === 'monthly' ? entry.monthlyStats.points :
+                  entry.totalPoints,
+          level: entry.level,
+          streak: entry.currentStreak,
+          previousRank: entry.previousClassRank
+        }));
     } catch (error) {
       console.error('Error getting leaderboard:', error);
       return [];
