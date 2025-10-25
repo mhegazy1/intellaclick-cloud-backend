@@ -249,6 +249,31 @@ router.post('/', auth, instructorAuth, classValidation, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating class:', error);
+
+    // Handle duplicate key error (E11000)
+    if (error.code === 11000) {
+      // Check which index caused the duplicate
+      if (error.keyPattern && error.keyPattern.code) {
+        // Old code_1 unique index (should not happen after migration)
+        return res.status(400).json({
+          error: `Class code '${error.keyValue.code}' already exists. Please use a different code.`
+        });
+      } else if (error.keyPattern && error.keyPattern.instructorId) {
+        // New compound unique index
+        const term = error.keyValue.term || 'this term';
+        const section = error.keyValue.section || '';
+        const sectionText = section ? ` (Section ${section})` : '';
+
+        return res.status(400).json({
+          error: `You already have a class with code '${error.keyValue.code}'${sectionText} for ${term}. Please use a different code, section, or term.`
+        });
+      }
+      // Generic duplicate key error
+      return res.status(400).json({
+        error: 'A class with these details already exists. Please modify the course code, term, or section.'
+      });
+    }
+
     res.status(500).json({ error: 'Failed to create class' });
   }
 });
@@ -697,7 +722,18 @@ router.post('/:id/students/add', auth, instructorAuth, [
     if (classDoc.instructorId.toString() !== (req.user._id || req.user.id || req.user.userId || '').toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
+    // Check enrollment limit (only for new enrollments, unless override is specified)
+    const override = req.query.override === 'true';
+    if (!override && classDoc.enrollmentLimit && classDoc.stats.enrolledCount >= classDoc.enrollmentLimit) {
+      return res.status(400).json({
+        error: `Enrollment limit reached (${classDoc.enrollmentLimit} students maximum)`,
+        currentEnrollment: classDoc.stats.enrolledCount,
+        limit: classDoc.enrollmentLimit,
+        canOverride: true
+      });
+    }
+
     // Check if student exists
     let student = await Student.findOne({ email });
     
@@ -1228,11 +1264,26 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
     const results = {
       enrolled: 0,
       invited: 0,
-      errors: 0
+      errors: 0,
+      skipped: 0
     };
-    
+
     for (const data of uploadData.data) {
       try {
+        // Check enrollment limit before each enrollment
+        if (classDoc.enrollmentLimit) {
+          const currentCount = await ClassEnrollment.countDocuments({
+            classId: classDoc._id,
+            status: 'enrolled'
+          });
+
+          if (currentCount >= classDoc.enrollmentLimit) {
+            results.skipped++;
+            console.log(`Skipping enrollment for ${data.email} - enrollment limit of ${classDoc.enrollmentLimit} reached`);
+            continue;
+          }
+        }
+
         if (data.matched && data.studentObjectId) {
           // Enroll existing student
           await ClassEnrollment.create({
@@ -1291,10 +1342,14 @@ router.post('/:id/confirm-roster', auth, instructorAuth, [
     // Clean up upload data
     delete global.rosterUploads[uploadId];
     
+    const message = results.skipped > 0
+      ? `Enrolled ${results.enrolled} students and sent ${results.invited} invitations. ${results.skipped} student(s) skipped due to enrollment limit.`
+      : `Enrolled ${results.enrolled} students and sent ${results.invited} invitations`;
+
     res.json({
       success: true,
       results,
-      message: `Enrolled ${results.enrolled} students and sent ${results.invited} invitations`
+      message
     });
   } catch (error) {
     console.error('Error confirming roster:', error);

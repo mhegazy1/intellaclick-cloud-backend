@@ -179,7 +179,18 @@ const classSchema = new mongoose.Schema({
 // Indexes for efficient queries
 classSchema.index({ instructorId: 1, term: 1, status: 1 });
 classSchema.index({ joinCode: 1, joinCodeExpiry: 1 });
-classSchema.index({ code: 1, section: 1, term: 1 });
+
+// Compound unique index: Same instructor can teach same course in different terms/sections
+// Different instructors can teach the same course code
+// Deleted classes don't block codes from being reused
+classSchema.index(
+  { instructorId: 1, code: 1, term: 1, section: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $ne: 'deleted' } },
+    name: 'instructor_course_term_section_unique'
+  }
+);
 
 // Generate unique join code
 classSchema.methods.generateJoinCode = async function() {
