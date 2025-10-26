@@ -64,34 +64,41 @@ async function backfillEnrollmentStats() {
               lastAttendanceDate = participant.joinedAt;
             }
           }
-        }
 
-        // Count responses from this student
-        const studentResponses = session.responses.filter(r =>
-          r.userId && r.userId.toString() === studentId.toString()
-        );
+          // CRITICAL FIX: Match responses by participantId, not userId
+          // Responses only store participantId, not userId
+          if (participant && participant.participantId) {
+            const studentResponses = session.responses.filter(r =>
+              r.participantId === participant.participantId
+            );
 
-        totalQuestionsAnswered += studentResponses.length;
+            totalQuestionsAnswered += studentResponses.length;
 
-        // Count correct answers
-        for (const response of studentResponses) {
-          if (response.correctAnswer !== undefined && response.answer !== null) {
-            const isCorrect = String(response.answer).toLowerCase().trim() ===
-                            String(response.correctAnswer).toLowerCase().trim();
-            if (isCorrect) {
-              totalCorrectAnswers++;
+            // Count correct answers
+            for (const response of studentResponses) {
+              if (response.correctAnswer !== undefined && response.answer !== null) {
+                const isCorrect = String(response.answer).toLowerCase().trim() ===
+                                String(response.correctAnswer).toLowerCase().trim();
+                if (isCorrect) {
+                  totalCorrectAnswers++;
+                }
+              }
             }
           }
         }
       }
 
       const sessionsAttended = sessionsAttendedSet.size;
+      const attendanceRate = sessions.length > 0
+        ? Math.round((sessionsAttended / sessions.length) * 100)
+        : 0;
 
       // Update enrollment stats
       enrollment.stats.questionsAnswered = totalQuestionsAnswered;
       enrollment.stats.correctAnswers = totalCorrectAnswers;
       enrollment.stats.sessionsAttended = sessionsAttended;
       enrollment.stats.totalSessions = sessions.length;
+      enrollment.stats.attendanceRate = attendanceRate;
       if (lastAttendanceDate) {
         enrollment.stats.lastAttendanceDate = lastAttendanceDate;
       }
