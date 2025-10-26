@@ -944,8 +944,7 @@ router.post('/:id/invite', auth, instructorAuth, [
           classId: classDoc._id,
           createdBy: (req.user._id || req.user.id || req.user.userId),
           email,
-          source: 'instructor',
-          customMessage
+          source: 'manual'
         });
         
         invitation.generateToken();
