@@ -759,11 +759,10 @@ router.post('/:enrollmentId/resend-invite', auth, instructorAuth, [
     
     // Resend invitation
     const emailService = require('../services/emailService');
-    const emailInstance = new emailService();
-    
+
     const inviteUrl = `${process.env.STUDENT_PORTAL_URL || 'https://app.intellaclick.com'}/accept-invite?token=${invitation.token}`;
-    
-    await emailInstance.sendEmail(
+
+    await emailService.sendEmail(
       invitation.email,
       `Reminder: Invitation to join ${classDoc.name}`,
       `<p>This is a reminder to join the class ${classDoc.name}.</p>

@@ -953,10 +953,9 @@ router.post('/:id/invite', auth, instructorAuth, [
         
         // Send invitation email if email service is configured
         const emailService = require('../services/emailService');
-        const emailInstance = new emailService();
-        
+
         const inviteUrl = `${process.env.STUDENT_PORTAL_URL || 'https://app.intellaclick.com'}/accept-invite?token=${invitation.token}`;
-        
+
         const emailHtml = `
           <h2>You've been invited to join ${classDoc.name}</h2>
           <p>Hello,</p>
@@ -973,8 +972,8 @@ router.post('/:id/invite', auth, instructorAuth, [
           <p>This invitation will expire in 30 days.</p>
           <p>If you already have an IntellaClick account, you can also join using the join code: <strong>${classDoc.joinCode}</strong></p>
         `;
-        
-        await emailInstance.sendEmail(
+
+        await emailService.sendEmail(
           email,
           `Invitation to join ${classDoc.name}`,
           emailHtml
