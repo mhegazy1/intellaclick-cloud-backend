@@ -1701,15 +1701,37 @@ router.post('/code/:sessionCode/respond', optionalAuth, async (req, res) => {
     
     if (existingResponseIndex !== -1) {
       if (session.allowAnswerChange) {
+        // CRITICAL FIX: Never overwrite a real answer with null
+        // This prevents auto-submit null from destroying actual student answers
+        const existingAnswer = session.responses[existingResponseIndex].answer;
+
+        if ((answer === null || answer === undefined) &&
+            existingAnswer !== null && existingAnswer !== undefined) {
+          console.warn('[Sessions] 🛑 BLOCKED: Attempted to overwrite real answer with null!', {
+            questionId,
+            participantId: effectiveParticipantId,
+            existingAnswer,
+            attemptedAnswer: answer,
+            message: 'Keeping original answer, rejecting null overwrite'
+          });
+
+          return res.json({
+            success: true,
+            message: 'Response already recorded',
+            responseId: session.responses[existingResponseIndex]._id,
+            note: 'Null answer rejected - kept original answer'
+          });
+        }
+
         // Allow answer change - update the existing response
         console.log('[Sessions] Answer change allowed, updating existing response');
         session.responses[existingResponseIndex].answer = answer;
         session.responses[existingResponseIndex].submittedAt = new Date();
-        
+
         await session.save();
-        
-        return res.json({ 
-          success: true, 
+
+        return res.json({
+          success: true,
           message: 'Answer updated successfully',
           responseId: session.responses[existingResponseIndex]._id,
           isUpdate: true
